@@ -20,7 +20,8 @@ clin_output_path <- "~/BHK lab/ICB_Wolf/data/CLIN.txt"
 write.table(clin, clin_output_path, quote = FALSE, sep = "\t", row.names = FALSE)
 
 # Path for expression data file
-expr_file_path <- "~/BHK lab/ICB_Wolf/source_data/GSE194040_ISPY2ResID_AgilentGeneExp_990_FrshFrzn_GPL20078_ProbeLevel_n654.txt"
+expr_file_path <- "~/BHK lab/ICB_Wolf/source_data/GSE194040_ISPY2ResID_AgilentGeneExp_990_FrshFrzn_meanCol_geneLevel_n988.txt"
+
 
 # Read and process expression data
 expr <- read.table(expr_file_path, header = TRUE, sep = "\t")
