@@ -1,3 +1,6 @@
+# Clinical Data Processing
+# Goal: save CLIN.csv
+
 # Libraries and Source Files
 library(tibble)
 
@@ -14,55 +17,52 @@ rownames(clin) <- clin$Patient.Identifier
 
 # Data Curation for Clinical Data
 # Selecting Specific Columns for Analysis
-selected_cols <- c("Patient.Identifier", "Arm", "pCR")
-clin <- cbind(clin[, selected_cols], rep(NA, 15))
+selected_cols <- c("patient", "Arm", "pCR")
+clin <- cbind(clin[, selected_cols], "Breast", "F", "microarray", NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA)
 
-colnames(clin) <- c("patient", "drug_type", "recist", "primary", "age", "sex", "stage", "response.other.info", "t.os", "t.pfs", "histo", "stage", "os", "pfs", "dna", "rna", "response")
+colnames(clin) <- c("patient", "drug_type", "response.other.info", "primary", "sex", "rna", "age", "stage", "recist", "t.os", "t.pfs", "histo", "os", "pfs", "dna", "response")
 
-# Define response based on values in "response.other.info"
+# Set "sex" ,"rna" and "rna_info" columns
+#clin$rna <- "microarray"
+#clin$rna_info <- "quantile" 
+
+# Define "response" based on values in "response.other.info"
 clin$response <- Get_Response(data = clin) 
 
-# Set sex, stage, dna, dna_info columns at NA
-clin$sex <- "F"
-clin$stage <- NA
-clin$dna <- NA
-clin$dna_info <- NA
-
-# Microarray and RNA-seq
-clin$rna <- "Microarray"
-
-# TODO: Check if linearization could be in rna_info
-clin$rna_info <- "NA"          
-
 # Reordering Columns for Structured Data
-clin <- clin[, c(
-  "patient", "sex", "age", "primary", "histo", "stage", 
-  "response.other.info", "recist", "response", "drug_type", "dna", "dna_info", "rna","rna_info", "t.pfs", 
-  "pfs", "t.os", "os"
-)]
+clin <- clin[, c("patient", "sex", "age", "primary", "histo", "stage", "response.other.info", "recist", "response", "drug_type", "dna", "rna", "t.pfs", "pfs", "t.os", "os")]
 
-# Formatting clinical data using a custom function.
+
+# Formatting clinical data using a custom function
 clin <- format_clin_data(clin, "patient", selected_cols, clin)
 
-# Add survival_unit and survival_type columns, use 'curation_tissue.csv' file to set clin$tissueid column
-# TODO: Add Wolf to the data files
 
-# Annotate Tissue Data
-path <- "https://raw.githubusercontent.com/BHKLAB-DataProcessing/ICB_Common/main/data/curation_tissue.csv"
-annotation_tissue <- read.csv(path)
+# Annotating Tissue Data
+# Survival_unit and survival_type columns will be added in annotate_tissue
+annotation_tissue <- read.csv("https://raw.githubusercontent.com/BHKLAB-DataProcessing/ICB_Common/main/data/curation_tissue.csv")
+clin <- annotate_tissue(clin=clin, study='Wolf', annotation_tissue= annotation_tissue, check_histo=FALSE)
 
-clin <- annotate_tissue(clin=clin, study='Wolf', annotation_tissue=annotation_tissue, check_histo=FALSE)
+# TODO: Address the issue of missing survival PFS (Progression-Free Survival) and OS (Overall Survival) data
+clin$survival_unit <- NA
 
-# Add column 'treatmentid' after 'tissueid' column.
-clin <- add_column(clin, treatmentid = clin$Agent_PD1, .after='tissueid')
+#Set "rna_info" column as "quantile" .
+clin$rna_info <- "quantile" 
+clin$dna_info <- NA
 
-# Adding drug_type based on treatmentid.
-# Print unique values of treatmentid.
-print(unique(clin$treatmentid))
+# TODO: Verify treatmentid columns with Sisira
+annotation_drug <- read.csv("https://raw.githubusercontent.com/BHKLAB-DataProcessing/ICB_Common/main/data/curation_drug.csv")
+clin <- add_column(clin, treatmentid=annotate_drug('Wolf', clin$drug_type, annotation_drug), .after='tissueid')
 
-# clin$drug_typ <- # TODO: Based on Farnoosh categorization decision on adding chemo
+#TODO: delete this line later.
+#clin$treatmentid <- NA 
 
-# Replace empty string values with NA.
+#TODO: delete next line later.
+# print(unique(clin$drug_type))
+
+# TODO: Update 'drug_type' based on Farnoosh's decision on chemo categorization
+# clin$drug_type <- 
+
+# Replace empty string values with NA
 clin[clin == ""] <- NA
 
 # Save the processed data as CLIN.csv file

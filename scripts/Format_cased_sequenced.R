@@ -4,7 +4,6 @@
 # Load the clinical merged data from the specified file path.
 clin_path <- "~/BHK lab/ICB_Wolf/data/CLIN.txt"
 clin <- read.table(clin_path, sep="\t", header=TRUE)
-colnames(clin)[colnames(clin) == "Patient.Identifier"] <- "patient"
 
 # Extract unique patients and sort them.
 patient <- sort(unique(clin$patient))
@@ -23,9 +22,8 @@ case$expr <- as.numeric(as.character(case$expr))
 expr_path <- "~/BHK lab/ICB_Wolf/data/EXPR.txt.gz"
 expr <- read.csv(expr_path, stringsAsFactors=FALSE , sep="\t", check.names = FALSE)
 
-# Check for any duplicate column names after renaming
-duplicate_colnames <- colnames(expr)[duplicated(colnames(expr))]
-print(duplicate_colnames)  # Should print nothing ideally
+# confirm no duplicate colnames.
+all(!duplicated(colnames(expr))) == TRUE
 
 # Sort the row names of 'expr'
 expr <- expr[sort(rownames(expr)),]
@@ -39,14 +37,6 @@ for(i in 1:nrow(case)) {
     case$expr[i] = 1
   }
 }
-
-#TODO: case with two 629606?
-# Identify different names
-different_names <- colnames(expr)[!colnames(expr) %in% rownames(case)]
-print(different_names) # "629606.GPL16233" "629606.GPL20078"
-
-different_names2 <- rownames(case)[!rownames(case) %in% colnames(expr)]
-print(different_names2) # "629606"
 
 # Save the updated 'case' data frame to a CSV file.
 path_case <- "~/BHK lab/ICB_Wolf/data/cased_sequenced.csv"
