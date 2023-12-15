@@ -2,7 +2,7 @@
 # Goal: Save cased_sequenced.csv
 
 # Load the clinical merged data from the specified file path.
-clin_path <- "~/BHK lab/ICB_Wolf/data/CLIN.txt"
+clin_path <- "~/BHK lab/ICB_Wolf/files/CLIN.txt"
 clin <- read.table(clin_path, sep="\t", header=TRUE)
 
 # Extract unique patients and sort them.
@@ -19,7 +19,7 @@ case$cna <- as.numeric(as.character(case$cna))
 case$expr <- as.numeric(as.character(case$expr))
 
 # Load the RNA data
-expr_path <- "~/BHK lab/ICB_Wolf/data/EXPR.txt.gz"
+expr_path <- "~/BHK lab/ICB_Wolf/files/EXPR.txt.gz"
 expr <- read.csv(expr_path, stringsAsFactors=FALSE , sep="\t", check.names = FALSE)
 
 # confirm no duplicate colnames.
@@ -39,5 +39,5 @@ for(i in 1:nrow(case)) {
 }
 
 # Save the updated 'case' data frame to a CSV file.
-path_case <- "~/BHK lab/ICB_Wolf/data/cased_sequenced.csv"
+path_case <- "~/BHK lab/ICB_Wolf/files/cased_sequenced.csv"
 write.table( case , path_case , quote=FALSE , sep=";" , col.names=TRUE , row.names=FALSE )

@@ -1,5 +1,5 @@
 # Clinical Data Processing
-# Goal: save CLIN.csv
+# Goal: save CLIN.csv #987  73
 
 # Libraries and Source Files
 library(tibble)
@@ -71,3 +71,7 @@ clin$drug_type[clin$treatmentid %in% c('Paclitaxel', 'Paclitaxel + Pembrolizumab
 # Save the processed data as CLIN.csv file
 file <- "~/BHK lab/ICB_Wolf/data/CLIN.csv"
 write.csv(clin, file, row.names = TRUE)
+
+
+#TODO: replace by 
+#write.table( clin , file=file.path(output_dir, "CLIN.csv") , quote=FALSE , sep=";" , col.names=TRUE , row.names=FALSE )

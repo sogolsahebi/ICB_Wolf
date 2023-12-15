@@ -25,14 +25,12 @@ write.table(clin, clin_output_path, quote = FALSE, sep = "\t", row.names = FALSE
 # Path for expression data file
 expr_file_path <- "~/BHK lab/ICB_Wolf/source_data/GSE194040_ISPY2ResID_AgilentGeneExp_990_FrshFrzn_meanCol_geneLevel_n988.txt"
 
-
 # Read and process expression data
 expr <- read.table(expr_file_path, header = TRUE, sep = "\t")
 colnames(expr) <- sub("^X", "", colnames(expr))
 
 # Confirm no duplication.
 all(!duplicated(colnames(clin))) ==  TRUE
-
 
 # Calculate the row-wise average of gene expression data from two samples ("629606.GPL16233" and "629606.GPL20078")
 # and store it in a new column ('629606'), ignoring missing values
