@@ -19,7 +19,7 @@ clin <- clin[-1, ]
 colnames(clin)[colnames(clin) == "Patient Identifier"] <- "patient"
 
 # Save clinical data as CLIN.txt
-clin_output_path <- "~/BHK lab/ICB_Wolf/data/CLIN.txt"
+clin_output_path <- "~/BHK lab/ICB_Wolf/files/CLIN.txt"
 write.table(clin, clin_output_path, quote = FALSE, sep = "\t", row.names = FALSE)
 
 # Path for expression data file
@@ -45,7 +45,7 @@ expr <- expr[sort(rownames(expr)), ]
 all(sapply(expr, is.numeric)) == TRUE
 
 # Save expression data as EXPR.txt.gz
-expr_output_path <- "~/BHK lab/ICB_wolf/data/EXPR.txt.gz"
+expr_output_path <- "~/BHK lab/ICB_wolf/files/EXPR.txt.gz"
 gz_conn <- gzfile(expr_output_path, "w")
 write.table(expr, gz_conn, sep = "\t", row.names = TRUE, quote = FALSE)
 close(gz_conn)

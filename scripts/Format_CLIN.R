@@ -1,5 +1,5 @@
 # Clinical Data Processing
-# Goal: save CLIN.csv #987  73
+# Goal: save CLIN.csv (dimensions: 987 x 73).
 
 # Libraries and Source Files
 library(tibble)
@@ -11,7 +11,7 @@ source("https://raw.githubusercontent.com/BHKLAB-Pachyderm/ICB_Common/main/code/
 source("https://raw.githubusercontent.com/BHKLAB-Pachyderm/ICB_Common/main/code/annotate_drug.R")
 
 # Data Loading for Clinical Data
-file_path_clin <- "~/BHK lab/ICB_Wolf/data/CLIN.txt"
+file_path_clin <- "~/BHK lab/ICB_Wolf/files/CLIN.txt"
 clin_original <- read.csv(file_path_clin, stringsAsFactors = FALSE, sep = "\t")
 
 # Data Curation for Clinical Data
@@ -23,9 +23,6 @@ clin <- cbind(clin_original[, selected_cols], "Breast", "F", "microarray", NA, N
 
 # Set new column names.
 colnames(clin) <- c("patient", "drug_type", "response.other.info", "primary", "sex", "rna", "rna_info", "age", "stage", "recist", "t.os", "t.pfs", "histo", "os", "pfs", "dna", "dna_info", "response")
-
-#Set patient as rownames.
-#rownames(clin) <- clin$patient
 
 # Define "response" based on values in "response.other.info"
 clin$response <- Get_Response(data = clin) 
@@ -42,36 +39,35 @@ clin <- format_clin_data(clin_original, "patient", selected_cols, clin)
 annotation_tissue <- read.csv("https://raw.githubusercontent.com/BHKLAB-DataProcessing/ICB_Common/main/data/curation_tissue.csv")
 clin <- annotate_tissue(clin=clin, study='Wolf', annotation_tissue= annotation_tissue, check_histo=FALSE)
 
-# TODO: Address the issue of missing survival PFS (Progression-Free Survival) and OS (Overall Survival) data
+# Set  survival unit to NA Missing survival PFS/OS.
 clin$survival_unit <- NA
 
-# TODO: Verify treatmentid columns with Sisira
+# See unique drug_types.
+print(unique(clin$drug_type))
+
+# Set treatmentid based on curation_drug.csv file.
 annotation_drug <- read.csv("https://raw.githubusercontent.com/BHKLAB-DataProcessing/ICB_Common/main/data/curation_drug.csv")
 clin <- add_column(clin, treatmentid=annotate_drug('Wolf', clin$drug_type, annotation_drug), .after='tissueid')
 
-#TODO: delete this line later.
-clin$treatmentid <- clin$drug_type
+# Check changes. 
+print(unique(clin$treatmentid))
 
-#TODO: delete next line later.
-print(unique(clin$drug_type))
-
-# TODO: Update 'drug_type' based on Farnoosh's decision on chemo categorization
-# Set drug_type based on treatmentid.
+# Update 'drug_type' column based  category for specific 'treatmentid'
 clin$drug_type[clin$treatmentid == 'Paclitaxel' ] <- 'chemo'
 clin$drug_type[clin$treatmentid == 'Paclitaxel + Pembrolizumab'] <- 'IO+chemo'
+clin$drug_type[clin$treatmentid == 'Trastuzumab Emtansine + Pertuzumab'] <- 'targeted'
 
-clin$drug_type[clin$treatmentid %in% c('Paclitaxel', 'Paclitaxel + Pembrolizumab', 
-                                       'Paclitaxel + Neratinib', 'Paclitaxel + ABT 888 + Carboplatin', 
-                                       'Paclitaxel + Trastuzumab', 'Paclitaxel + AMG 386', 
-                                       'Paclitaxel + MK-2206 + Trastuzumab', 'Paclitaxel + MK-2206',
-                                       'Paclitaxel + Pertuzumab + Trastuzumab', 'Paclitaxel + AMG 386 + Trastuzumab', 
-                                       'T-DM1 + Pertuzumab', 'Paclitaxel + Ganitumab', 'Paclitaxel + Ganetespib', 
-                                       'Paclitaxel + Pembrolizumab')] <- 'IO+chemo'
+
+clin$drug_type[clin$treatmentid %in% c('Paclitaxel + Neratinib', 
+                                       'Paclitaxel + Veliparib dihydrochloride + Carboplatinum', 
+                                       'Paclitaxel + Trastuzumab', 'Paclitaxel + Trebananib',
+                                       'Paclitaxel + MK-2206', 'Paclitaxel + MK-2206 + Trastuzumab', 
+                                       'Paclitaxel + Pertuzumab + Trastuzumab',
+                                       'Paclitaxel + Trebananib + Trastuzumab', 'Paclitaxel + Ganitumab', 
+                                       'Paclitaxel + Ganetespib', 'Paclitaxel + Pembrolizumab')] <- 'chemo+targeted'
+
 
 # Save the processed data as CLIN.csv file
-file <- "~/BHK lab/ICB_Wolf/data/CLIN.csv"
-write.csv(clin, file, row.names = TRUE)
+file <- "~/BHK lab/ICB_Wolf/files/CLIN.csv"
+write.table( clin , file , quote=FALSE , sep=";" , col.names=TRUE , row.names=FALSE )
 
-
-#TODO: replace by 
-#write.table( clin , file=file.path(output_dir, "CLIN.csv") , quote=FALSE , sep=";" , col.names=TRUE , row.names=FALSE )
