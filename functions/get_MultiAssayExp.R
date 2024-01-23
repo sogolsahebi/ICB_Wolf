@@ -22,7 +22,7 @@ get_MultiAssayExp <- function(study, input_dir, expr_with_counts_isoforms=FALSE)
   #input_dir = "~/BHK lab/ICB_Wolf/files/"
   
   #add
-  data <- read_delim("data/DATASET_LOAD_INFO.csv", delim = ";",quote = ";", escape_double = FALSE, trim_ws = TRUE)
+  data <- read_delim("output/DATASET_LOAD_INFO.csv", delim = ";",quote = ";", escape_double = FALSE, trim_ws = TRUE)
   colnames(data) <- gsub("\"", "", names(data))
   data <- data %>% mutate(across(everything(), ~str_replace_all(.x, "\"", "")))
   
@@ -69,8 +69,8 @@ get_MultiAssayExp <- function(study, input_dir, expr_with_counts_isoforms=FALSE)
   coldata <- coldata[order(rownames(coldata)), ]
   
   #add
-  ICB_Wolf <- MultiAssayExperiment(experiments=se_list, colData=coldata)
-  saveRDS(ICB_Wolf, file = "C:/Users/sogol/OneDrive/Documents/BHK lab/ICB_Wolf/data/ICB_Wolf.rds")
+  # ICB_Wolf <- MultiAssayExperiment(experiments=se_list, colData=coldata)
+  # saveRDS(ICB_Wolf, file = "C:/Users/sogol/OneDrive/Documents/BHK lab/ICB_Wolf/data/ICB_Wolf.rds")
   
   return(MultiAssayExperiment(experiments=se_list, colData=coldata))
 }

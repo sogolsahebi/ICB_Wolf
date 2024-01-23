@@ -64,7 +64,7 @@ clin$drug_type[clin$treatmentid %in% c('Paclitaxel + Neratinib',
                                        'Paclitaxel + MK-2206', 'Paclitaxel + MK-2206 + Trastuzumab', 
                                        'Paclitaxel + Pertuzumab + Trastuzumab',
                                        'Paclitaxel + Trebananib + Trastuzumab', 'Paclitaxel + Ganitumab', 
-                                       'Paclitaxel + Ganetespib', 'Paclitaxel + Pembrolizumab')] <- 'chemo+targeted'
+                                       'Paclitaxel + Ganetespib')] <- 'chemo+targeted'
 
 
 # Save the processed data as CLIN.csv file
