@@ -1,0 +1,120 @@
+---
+title: "QC Analysis of ICB_Wolf mae"
+author: "Nasim Bondar Sahebi"
+date: "2024-01-23"
+output:
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+```
+
+## load libraries
+
+```{r libraries cars}
+library(MultiAssayExperiment) 
+library(ggplot2)
+
+```
+
+## Data Loading and Preparation
+
+**Data Overview**:
+
+  - **Study Reference**: [PubMed ID 35623341](https://pubmed.ncbi.nlm.nih.gov/35623341/)
+  - **Patient Count (RNA)**: 987
+  - **Treatment Details**:
+  - **IO+chemo**: 69 
+  - **chemo+targeted**: 687
+  - **chemo**: 179 
+  - **targeted**: 52
+  
+
+Load multiassay .rds file, extract clinical, expression and annotations data; prepare gene expression data for analysis.
+
+```{r multiassay extraction, echo=FALSE}
+# Load your multiassay result and extract clinical data , expression data and annotation
+
+#load mae obj
+mae <- readRDS("~/BHK lab/ICB_Wolf/output/ICB_Wolf.rds")
+
+#extract Clinical data 
+clin <- data.frame(colData(mae))
+
+#extract the expression data
+expr <- assays(mae)[["expr"]]
+
+#extracting the annotation 
+annot <- data.frame(rowData(mae@ExperimentList$expr))
+
+# Display first few rows of the dataset
+DT::datatable(expr[1:8, 1:4])
+```
+## Fig 1: Trial design and data.
+
+**Part c**,  pCR rate across arms by receptor subtype. 
+- PCR and arms is stored in column `response.other.info` and which was set in `Format_CLIN.R`.
+- Arm is stored in column `Arm..short.name.` column
+- PCR rate is stored `Receptor.Subtype` column
+
+**Part d**  ISPY2–990 mRNA/RPPA Data Resource consort.
+
+```{r Fig1-c , fig.width= 9 , fig.height= 5 }
+
+# 1. Part c:
+
+# Calculate the mean pCR rate for each treatment arm and receptor subtype
+pCR_rates <- aggregate(response.other.info ~ Arm..short.name. + Receptor.Subtype, data = clin, FUN = mean)
+
+# Define some colours for later use.
+colors <- c("#6BAED6", "#3182BD", "#9ECAE1", "#CCCCCC", "#FDCC8A", "#FC8D59", "#D7301F", "#C6DBEF", "#969696", "#8C6BB1")
+
+# Define a ggplot object with a bar plot
+ggplot_object <- ggplot(pCR_rates, aes(x = Receptor.Subtype, y = response.other.info, fill = Arm..short.name.)) +
+  geom_bar(stat = "identity", position = position_dodge()) +  
+  geom_text(aes(label = paste0(round(response.other.info, 2), "%")),  
+            position = position_dodge(width = 0.9), 
+            vjust = -0.7,  
+            color = "black", 
+            size = 1.7) +  
+  scale_fill_manual(values = colors) +  
+  labs(x = "Receptor Subtype", y = "Estimated pCR Rate (%)", fill = "Treatment Arm") +  theme_minimal() +  
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  
+
+# Print the plot
+print(ggplot_object)
+
+```
+**Figure(d)**  ISPY2–990 mRNA/RPPA Data Resource consort. 
+
+```{r Fig1.d} 
+#2.Part d
+
+# Load the ggplot2 library
+library(ggplot2)
+
+# Create a data frame with the number of patients for each treatment arm
+arm_counts_df<- as.data.frame(table(clin$Arm..short.name.))
+
+# Define colours for later.
+colors <- c("black", "grey60", "grey80", "blue", "orange", "yellow", "red", "purple", "brown", "pink")
+
+# Rename the columns for clarity
+names(arm_counts_df) <- c("TreatmentArm", "NumberOfPatients")
+
+# define the bar plot 
+ggplot <- ggplot(arm_counts_df, aes(x = TreatmentArm, y = NumberOfPatients, label = NumberOfPatients)) +
+  geom_bar(stat = "identity", aes(fill = TreatmentArm)) + geom_text(vjust = -0.5, size = 3) + 
+  scale_fill_manual(values = colors) + labs(x = "Treatment Arm", y = "Number of Patients") +
+  theme_minimal() +theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
+
+# Display the plot
+print(ggplot)
+
+```
+
+## Fig 4 paper , Clinically motivated response-based biomarker-subsets.
+
+
