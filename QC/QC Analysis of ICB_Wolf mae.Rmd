@@ -16,6 +16,9 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 ```{r libraries cars}
 library(MultiAssayExperiment) 
 library(ggplot2)
+library(dplyr)
+library(tibble)
+library(patchwork)
 
 ```
 
@@ -51,30 +54,61 @@ annot <- data.frame(rowData(mae@ExperimentList$expr))
 
 # Display first few rows of the dataset
 DT::datatable(expr[1:8, 1:4])
-```
-## Fig 1: Trial design and data.
 
-**Part c**,  pCR rate across arms by receptor subtype. 
+```
+
+## Treatment checking
+
+- Our analysis confirms `Arm..short.name.` from the paper's dataset matches with the `treatmentid` in our dataset, as defined by the `Format_CLIN.R` function from scripts.
+
+```{r checking treatment}
+
+# Display counts for specific treatments(IO)
+cat("Paclitaxel + Pembrolizumab treatments:", nrow(clin[clin$treatmentid == "Paclitaxel + Pembrolizumab", ]), "\n")
+cat("IO+chemo treatments:", nrow(clin[clin$treatment == "IO+chemo", ]), "\n")
+cat("Pembro treatments:", nrow(clin[clin$Arm..short.name. == "Pembro", ]), "\n")
+
+# Check if all 'Pembro' entries match 'IO+chemo' in treatment and 'Paclitaxel + Pembrolizumab' in treatmentid
+pembro_data <- clin[clin$Arm..short.name. == "Pembro", ]
+cat("All 'Pembro' match 'IO+chemo':", all(pembro_data$treatment == "IO+chemo"), "\n")
+cat("All 'Pembro' match 'Paclitaxel + Pembrolizumab':", all(pembro_data$treatmentid == "Paclitaxel + Pembrolizumab"), "\n")
+
+```
+## Paper Fig1: Trial design and data.
+
+### pCR rate across arms by receptor subtype:
 - PCR and arms is stored in column `response.other.info` and which was set in `Format_CLIN.R`.
 - Arm is stored in column `Arm..short.name.` column
 - PCR rate is stored `Receptor.Subtype` column
 
-**Part d**  ISPY2–990 mRNA/RPPA Data Resource consort.
+**Results**: Comparing our findings to those from paper Figure 1(c):
 
-```{r Fig1-c , fig.width= 9 , fig.height= 5 }
+- **HR+HER2- subtype**: The paper reports a peak pCR rate of 30%, whereas our data shows approximately 17.9%.
+- **HR-HER2- (TN) subtype**: High efficacy is indicated in both the paper (60%) and our results (about 66.7%).
+- **HR+HER2+ subtype**: A discrepancy is observed; the paper notes a 46% pCR rate, while our results suggest a     higher rate of around 56.5%.
+- **HR-HER2+ subtype**: The paper presents a top pCR rate of 74%, in contrast to our finding of 65.5%.
+
+The results demonstrate consistent efficacy for the HR-HER2- and HR+HER2+ subtypes, while they reveal variances for the HR+HER2- and HR-HER2+ groups.
+
+```{r Fig1partc , fig.width= 9 , fig.height= 5 }
 
 # 1. Part c:
 
 # Calculate the mean pCR rate for each treatment arm and receptor subtype
 pCR_rates <- aggregate(response.other.info ~ Arm..short.name. + Receptor.Subtype, data = clin, FUN = mean)
 
+# # Calculate the total pCR rate for each receptor subtype
+# total_df <- tibble(Arm..short.name = "Total", Receptor.Subtype = total_rates$Receptor.Subtype, response.other.info = total_rates$response.other.info)
+
+
 # Define some colours for later use.
 colors <- c("#6BAED6", "#3182BD", "#9ECAE1", "#CCCCCC", "#FDCC8A", "#FC8D59", "#D7301F", "#C6DBEF", "#969696", "#8C6BB1")
+
 
 # Define a ggplot object with a bar plot
 ggplot_object <- ggplot(pCR_rates, aes(x = Receptor.Subtype, y = response.other.info, fill = Arm..short.name.)) +
   geom_bar(stat = "identity", position = position_dodge()) +  
-  geom_text(aes(label = paste0(round(response.other.info, 2), "%")),  
+  geom_text(aes(label = paste0(round(response.other.info, 3)*100, "%")),  
             position = position_dodge(width = 0.9), 
             vjust = -0.7,  
             color = "black", 
@@ -83,13 +117,16 @@ ggplot_object <- ggplot(pCR_rates, aes(x = Receptor.Subtype, y = response.other.
   labs(x = "Receptor Subtype", y = "Estimated pCR Rate (%)", fill = "Treatment Arm") +  theme_minimal() +  
   theme(axis.text.x = element_text(angle = 45, hjust = 1))  
 
-# Print the plot
-print(ggplot_object)
+print(ggplot_object )
+
 
 ```
-**Figure(d)**  ISPY2–990 mRNA/RPPA Data Resource consort. 
+### ISPY2–990 mRNA/RPPA Data Resource consort.
 
-```{r Fig1.d} 
+**Results**: Comparing our findings to those from paper Figure 1(d):
+- we observe that the bar plot results from contain the exact same information as Figure 1(d) in the paper.
+
+```{r Fig1partd} 
 #2.Part d
 
 # Load the ggplot2 library
@@ -113,8 +150,221 @@ ggplot <- ggplot(arm_counts_df, aes(x = TreatmentArm, y = NumberOfPatients, labe
 # Display the plot
 print(ggplot)
 
+# Print the dimensions of the 'clin'  and verify with the paper results
+cat("Dimensions of 'clin':", paste(dim(clin)), 
+    "\nFigure 1d, section 'ISPY-990 mRNA/PPA DATA' of the paper also mentions Clinical data number is (n=987)\n\n")
+
+# Print the dimensions of the 'expr' 
+cat("Dimensions of 'expr':", paste(dim(expr)), "\n")
+
+# Print the number of unique treatment arms in the 'clin' 
+cat("Number of unique 'arm' values in 'clin':", length(unique(clin$Arm..short.name.)), "\n")
+cat("The paper mentions mRNA data has 987 patients with almost 19,000 genes across all 10 arms\n")
+
 ```
 
-## Fig 4 paper , Clinically motivated response-based biomarker-subsets.
+## Paper Fig4: Clinically motivated response-based biomarker-subsets.
+
+### Overall prevalence and pCR rates in Pembro by immune subtype in TN:
+
+**Results**: Comparing our findings to those from paper Figure 4(a):
+- We observe that the bar plot results contain the exact same information as Figure 1(d) in the paper. However, there is a slight difference: in the paper, the p-value is mentioned as 0.0013, whereas here it is computed as 0.0014.
+
+```{r Fig4partd, fig.width= 8 , fig.height= 6 }
+
+# Part (a)
+# 1. Pie chart for TN samples
+
+# subset TN samples 
+clin_TN <- clin[clin$Receptor.Subtype == "TN",]
+
+# Define data.frame for Immune Status and Counts
+clin_Immune <- as.data.frame(table(clin_TN$Immune.))
+names(clin_Immune) <- c("Immune_Status", "Counts")
+
+# Rename the 0 and 1 to "Immune-" and "Immune+"
+clin_Immune$Immune_Status <- factor(clin_Immune$Immune_Status, levels = c("0", "1"), labels = c("Immune-", "Immune+"))
+
+# Define a pie chart 
+pie_chart <- ggplot(clin_Immune, aes(x = "", y = Counts, fill = Immune_Status)) +
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar("y", start = 0) +
+  theme_void() +
+  scale_fill_manual(values = c("#9ECAE1", "#3182BD")) + 
+  geom_text(aes(label = paste0(round(Counts / sum(Counts) * 100), "%", "\n(n=", Counts, ")")), 
+            position = position_stack(vjust = 0.5)) + 
+  labs(title = "TN/Immune", fill = "Immune Status") + 
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+# Part (b)
+# 2. Barplot for TN samples
+
+# Filter clin_TN to include only the Pembro arm
+clin_TN_pembro <- clin_TN[clin_TN$Arm..short.name. == "Pembro",]
+
+# Calculate mean response.other.info values for each Immune Status in the Pembro arm
+response_data <- aggregate(response.other.info ~ Immune., data = clin_TN_pembro, FUN = mean, na.rm = TRUE)
+names(response_data) <- c("Immune_Status", "Mean_Response")
+response_data$Counts <- aggregate(response.other.info ~ Immune., data = clin_TN_pembro, FUN = length)$response.other.info
+
+# Add a new column to the data frame with the percentages
+response_data$Percentage <- (response_data$Counts / sum(response_data$Counts)) * 100
+
+# Convert Immune_Status to a factor with more readable levels
+response_data$Immune_Status <- factor(response_data$Immune_Status, levels = c("0", "1"), labels = c("Immune-", "Immune+"))
+
+# Set labels for format immune status and counts
+response_data$Labels <- paste(response_data$Immune., " (n =", response_data$Counts, ")")
+
+# Define  bar chart
+bar_chart <- ggplot(response_data, aes(x = Labels, y = Mean_Response, fill = Immune_Status)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = paste(round(Percentage), "%")), vjust = 1.8, color = "black") +
+  labs(x = "Immune Status", y = "Mean Response", fill = "Immune Status") +
+  scale_fill_manual(values = c("#9ECAE1", "#3182BD")) +
+  theme_minimal() +
+  ggtitle("Pembro arm") +
+  theme(plot.title = element_text(hjust = 0.5)) 
 
 
+# Perform to extract p-value
+fisher_result <- fisher.test(table(clin_TN_pembro$response.other.info, clin_TN_pembro$Immune.))
+p_value <- round(fisher_result$p.value, 4)
+
+# Annotate the p-value on the bar chart
+bar_chart <- bar_chart + 
+  annotate("text", x = 1.5, y = max(response_data$Mean_Response, na.rm = TRUE), 
+           label = paste0("p=", p_value), size = 3.5, hjust = 1 )
+
+print(pie_chart + bar_chart )
+
+```
+
+**Part(b)**: 
+
+Checking  Overall prevalence
+and pCR rates in VC by DRD subtype in TN. p-values shown are from Fisher’s exact test
+
+**Results**: Comparing our findings to those from paper Figure 4(a):
+- We observe that the bar plot results contain the exact same information as Figure 1(d) in the paper. 
+
+```{r figure 4 b, fig.width= 8 , fig.height= 6 }
+
+# Part (a)
+# 1. Pie chart for TN samples based on DRD status
+
+# subset TN samples 
+clin_TN <- clin[clin$Receptor.Subtype == "TN",]
+
+# Define data.frame for DRD Status and Counts
+clin_DRD <- as.data.frame(table(clin_TN$DRD.))
+names(clin_DRD) <- c("DRD_Status", "Counts")
+
+# Rename the 0 and 1 to "DRD-" and "DRD+"
+clin_DRD$DRD_Status <- factor(clin_DRD$DRD_Status, levels = c("0", "1"), labels = c("DRD-", "DRD+"))
+
+# Define a pie chart for DRD status
+pie_chart_DRD <- ggplot(clin_DRD, aes(x = "", y = Counts, fill = DRD_Status)) +
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar("y", start = 0) +
+  theme_void() +
+  scale_fill_manual(values = c("#FC8D59", "#D7301F")) + 
+  geom_text(aes(label = paste0(round(Counts / sum(Counts) * 100), "%", "\n(n=", Counts, ")")), 
+            position = position_stack(vjust = 0.5)) + 
+  labs(title = "TN/DRD", fill = "DRD Status") + 
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+# Part (b)
+# 2. Barplot for TN samples based on DRD status for VC arm
+
+# Filter clin_TN to include only the VC arm
+clin_TN_VC <- clin_TN[clin_TN$Arm..short.name. == "VC",]
+
+# Calculate mean response.other.info values for each DRD Status in the VC arm
+response_data_VC <- aggregate(response.other.info ~ DRD., data = clin_TN_VC, FUN = mean, na.rm = TRUE)
+names(response_data_VC) <- c("DRD_Status", "Mean_Response")
+response_data_VC$Counts <- aggregate(response.other.info ~ DRD., data = clin_TN_VC, FUN = length)$response.other.info
+
+# Add a new column to the data frame with the percentages
+response_data_VC$Percentage <- (response_data_VC$Counts / sum(response_data_VC$Counts)) * 100
+
+# Convert DRD_Status to a factor with more readable levels
+response_data_VC$DRD_Status <- factor(response_data_VC$DRD_Status, levels = c("0", "1"), labels = c("DRD-", "DRD+"))
+
+# Set labels for format DRD status and counts
+response_data_VC$Labels <- paste(response_data_VC$DRD., " (n =", response_data_VC$Counts, ")")
+
+# Define bar chart for DRD status in the VC arm
+bar_chart_DRD_VC <- ggplot(response_data_VC, aes(x = Labels, y = Mean_Response, fill = DRD_Status)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = paste(round(Percentage), "%")), vjust = 1.8, color = "black") +
+  labs(x = "DRD Status", y = "Mean Response", fill = "DRD Status") +
+  scale_fill_manual(values = c("#FC8D59", "#D7301F")) +
+  theme_minimal() +
+  ggtitle("VC arm") +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+# Perform Fisher's exact test
+fisher_result_DRD_VC <- fisher.test(table(clin_TN_VC$response.other.info, clin_TN_VC$DRD.))
+p_value_DRD_VC <- round(fisher_result_DRD_VC$p.value, 5)
+
+# Annotate the p-value on the DRD bar chart for the VC arm
+bar_chart_DRD_VC <- bar_chart_DRD_VC + 
+  annotate("text", x = 1.5, y = max(response_data_VC$Mean_Response, na.rm = TRUE), 
+           label = paste0("p=", sprintf("%.5f", p_value_DRD_VC)), size = 3.5, hjust = 1 )
+
+
+# Combine the DRD pie chart and VC arm DRD bar chart
+print(pie_chart_DRD + bar_chart_DRD_VC)
+
+# Combine the piercharts and bar plots 
+print(pie_chart + bar_chart + pie_chart_DRD + bar_chart_DRD_VC )
+
+```
+networkD3: TODO 
+
+
+```{r figure 4 ddd, fig.width= 8 , fig.height= 6 }
+
+# #Subset clin with 'Receptor.Subtype' being 'HR-HER2+' or 'HR+HER2+'
+# clin_subset <- clin[clin$Receptor.Subtype == 'HR-HER2+' | clin$Receptor.Subtype == 'HR+HER2+', ]
+# 
+# # Filter subset for 'BP.HER2.2..4' being "HER2+/BP_Her2orBasal" or "HER2+/BP_Luminal"
+# filtered_clin <- clin_subset[clin_subset$`BP.HER2.2..4` == "HER2+/BP_Her2orBasal" | 
+#                              clin_subset$`BP.HER2.2..4` == "HER2+/BP_Luminal", ]
+# 
+# 
+# # Create a list of unique subtypes and treatments
+# unique_subtypes <- unique(filtered_clin$`BP.HER2.2..4`)
+# unique_treatments <- unique(filtered_clin$`Arm..short.name.`)
+# 
+# # Combine unique subtypes and treatments to create nodes
+# nodes <- data.frame(name = c(unique_subtypes, unique_treatments))
+# 
+# 
+# # Load networkD3 package
+# library(networkD3)
+install.packages("networkD3")
+library(networkD3)
+
+# Example Data: Nodes
+nodes <- data.frame(name = c("Category A", "Category B", "Category C",
+                             "Intermediate 1", "Intermediate 2",
+                             "Final Stage 1", "Final Stage 2"))
+
+# Example Data: Links
+links <- data.frame(source = c(0, 0, 1, 1, 2, 2, 3, 4, 4, 3),
+                    target = c(3, 4, 3, 4, 3, 4, 5, 5, 6, 6),
+                    value = c(10, 15, 25, 5, 15, 10, 30, 20, 15, 25))
+
+# Create Sankey Diagram
+sankey <- sankeyNetwork(Links = links, Nodes = nodes, Source = 'source',
+                        Target = 'target', Value = 'value', NodeID = 'name',
+                        units = 'Units', fontSize = 12, nodeWidth = 30)
+
+# Print the Sankey Diagram
+sankey
+
+
+
+```
