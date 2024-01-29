@@ -1,7 +1,7 @@
 ---
-title: "QC Analysis of ICB_Wolf mae"
+title: "QC Analysis of ICB Wolf mae"
 author: "Nasim Bondar Sahebi"
-date: "2024-01-23"
+date: "2024 01 23"
 output:
   html_document: default
 ---
@@ -19,6 +19,7 @@ library(ggplot2)
 library(dplyr)
 library(tibble)
 library(patchwork)
+library(networkD3)
 
 ```
 
@@ -76,39 +77,40 @@ cat("All 'Pembro' match 'Paclitaxel + Pembrolizumab':", all(pembro_data$treatmen
 ```
 ## Paper Fig1: Trial design and data.
 
-### pCR rate across arms by receptor subtype:
+**pCR rate across arms by receptor subtype:**
 - PCR and arms is stored in column `response.other.info` and which was set in `Format_CLIN.R`.
 - Arm is stored in column `Arm..short.name.` column
 - PCR rate is stored `Receptor.Subtype` column
 
 **Results**: Comparing our findings to those from paper Figure 1(c):
 
-- **HR+HER2- subtype**: The paper reports a peak pCR rate of 30%, whereas our data shows approximately 17.9%.
-- **HR-HER2- (TN) subtype**: High efficacy is indicated in both the paper (60%) and our results (about 66.7%).
-- **HR+HER2+ subtype**: A discrepancy is observed; the paper notes a 46% pCR rate, while our results suggest a     higher rate of around 56.5%.
-- **HR-HER2+ subtype**: The paper presents a top pCR rate of 74%, in contrast to our finding of 65.5%.
+- **HR-HER2+ subtype**: The paper presents a top pCR rate of 74%, followed by 64%, 62%, and 56%, in contrast to our findings of 80%, 71%, 67%, and 57% respectively.
+- **HR+HER2- subtype**: The paper reports a peak pCR rate of 30%; our data shows approximately 30% as well.
+- **HR+HER2+ subtype**: A discrepancy is observed; the paper notes a 46% pCR rate, followed by 44%, while our results suggest a higher rate of around 51% and 48%.
+- **HR-HER2- (TN) subtype**: High efficacy is indicated in both the paper (60%, then 51%) and our results (about 66% and 58% respectively).
 
-The results demonstrate consistent efficacy for the HR-HER2- and HR+HER2+ subtypes, while they reveal variances for the HR+HER2- and HR-HER2+ groups.
+
+The study reveals slight differences in effectiveness across the subtypes, with the most consistent results seen in the HR-HER2- (TN) subtype.
 
 ```{r Fig1partc , fig.width= 9 , fig.height= 5 }
-
-# 1. Part c:
 
 # Calculate the mean pCR rate for each treatment arm and receptor subtype
 pCR_rates <- aggregate(response.other.info ~ Arm..short.name. + Receptor.Subtype, data = clin, FUN = mean)
 
-# # Calculate the total pCR rate for each receptor subtype
-# total_df <- tibble(Arm..short.name = "Total", Receptor.Subtype = total_rates$Receptor.Subtype, response.other.info = total_rates$response.other.info)
+# Calculate the total for each Receptor.Subtype, assuming totals are already in the correct format
+totals <- aggregate(response.other.info ~ Receptor.Subtype, data = clin, FUN = mean)
+totals$Arm..short.name. <- "Total"
 
+# Combine the mean percentages and the totals
+pCR_rates_with_totals <- rbind(pCR_rates, totals)
 
 # Define some colours for later use.
-colors <- c("#6BAED6", "#3182BD", "#9ECAE1", "#CCCCCC", "#FDCC8A", "#FC8D59", "#D7301F", "#C6DBEF", "#969696", "#8C6BB1")
-
+colors <- c("#6BAED6", "#3182BD", "#9ECAE1", "#CCCCCC", "#FDCC8A", "#FC8D59", "#D7301F", "#C6DBEF", "#969696", "#8C6BB1", "black", "#BADA55")
 
 # Define a ggplot object with a bar plot
-ggplot_object <- ggplot(pCR_rates, aes(x = Receptor.Subtype, y = response.other.info, fill = Arm..short.name.)) +
+ggplot_object <- ggplot(pCR_rates_with_totals, aes(x = Receptor.Subtype, y = response.other.info, fill = Arm..short.name.)) +
   geom_bar(stat = "identity", position = position_dodge()) +  
-  geom_text(aes(label = paste0(round(response.other.info, 3)*100, "%")),  
+  geom_text(aes(label = paste0(round(response.other.info, 2)*100)),  
             position = position_dodge(width = 0.9), 
             vjust = -0.7,  
             color = "black", 
@@ -119,9 +121,8 @@ ggplot_object <- ggplot(pCR_rates, aes(x = Receptor.Subtype, y = response.other.
 
 print(ggplot_object )
 
-
 ```
-### ISPY2–990 mRNA/RPPA Data Resource consort.
+**ISPY2–990 mRNA/RPPA Data Resource consort**
 
 **Results**: Comparing our findings to those from paper Figure 1(d):
 - we observe that the bar plot results from contain the exact same information as Figure 1(d) in the paper.
@@ -165,7 +166,7 @@ cat("The paper mentions mRNA data has 987 patients with almost 19,000 genes acro
 
 ## Paper Fig4: Clinically motivated response-based biomarker-subsets.
 
-### Overall prevalence and pCR rates in Pembro by immune subtype in TN:
+**Overall prevalence and pCR rates in Pembro by immune subtype in TN:**
 
 **Results**: Comparing our findings to those from paper Figure 4(a):
 - We observe that the bar plot results contain the exact same information as Figure 1(d) in the paper. However, there is a slight difference: in the paper, the p-value is mentioned as 0.0013, whereas here it is computed as 0.0014.
@@ -242,13 +243,13 @@ print(pie_chart + bar_chart )
 
 **Part(b)**: 
 
-Checking  Overall prevalence
-and pCR rates in VC by DRD subtype in TN. p-values shown are from Fisher’s exact test
+**Checking  Overall prevalence
+and pCR rates in VC by DRD subtype in TN. p-values shown are from Fisher’s exact test**
 
 **Results**: Comparing our findings to those from paper Figure 4(a):
 - We observe that the bar plot results contain the exact same information as Figure 1(d) in the paper. 
 
-```{r figure 4 b, fig.width= 8 , fig.height= 6 }
+```{r figure 4b, fig.width= 8 , fig.height= 6 }
 
 # Part (a)
 # 1. Pie chart for TN samples based on DRD status
@@ -321,50 +322,260 @@ print(pie_chart_DRD + bar_chart_DRD_VC)
 print(pie_chart + bar_chart + pie_chart_DRD + bar_chart_DRD_VC )
 
 ```
-networkD3: TODO 
+**Part(c)**: 
+
+**Sankey plot showing Immune/DRD subsets in TN, with barplots of pCR rates in VC, Pembro and control.** 
+
+**Results**: Comparing our findings to those from paper Figure 4(c):
+- We observe that the bar plot results contain the exact same information as Figure 4(c) in the paper.
+
+```{r Figure4 partd }
+
+# Use clin_TN subset
+
+# Define count of "HR-HER2+", "HR+HER2", "HER2+/BP-HER2_or_Basal" , ""HER2+/BP-Luminal" an dTotal number of rows for defining the percentages.
+TN_count <- nrow(clin_TN)
+Immune_neg_DRD_neg_count <- sum(clin_TN$RPS.5 == "HER2-/Immune-/DRD.v3-", na.rm = TRUE)
+Immune_neg_DRD_pos_count <- sum(clin_TN$RPS.5 == "HER2-/Immune-/DRD.v3+", na.rm = TRUE)
+Immune_pos_DRD_neg_count <- sum(clin_TN$RPS.5 == "HER2-/Immune+" & clin_TN$DRD. == "0", na.rm = TRUE)
+Immune_pos_DRD_pos_count <- sum(clin_TN$RPS.5 == "HER2-/Immune+"& clin_TN$DRD. == "1", na.rm = TRUE)
 
 
-```{r figure 4 ddd, fig.width= 8 , fig.height= 6 }
+# Example format: "HR-HER2+; 30% (n=100)"
+nodes <- data.frame(name = c(
+  paste("TN;","(n=",  nrow(clin_TN), ")", sep=""),
+  paste("TN/Immune-/DRD+;", ceiling(Immune_neg_DRD_neg_count  / TN_count * 100), "% (n=", Immune_neg_DRD_neg_count, ")", sep=""), 
+  paste("TN/Immune-/DRD-;", ceiling(Immune_neg_DRD_pos_count / TN_count * 100), "% (n=", Immune_neg_DRD_pos_count, ")", sep=""),
+  paste("TN/Immune+/DRD-;", ceiling(Immune_pos_DRD_neg_count / TN_count * 100), "% (n=", Immune_pos_DRD_neg_count, ")", sep=""),
+   paste("TN/Immune+/DRD+;", ceiling(Immune_pos_DRD_pos_count / TN_count * 100), "% (n=", Immune_pos_DRD_pos_count, ")", sep="")
+))
 
-# #Subset clin with 'Receptor.Subtype' being 'HR-HER2+' or 'HR+HER2+'
-# clin_subset <- clin[clin$Receptor.Subtype == 'HR-HER2+' | clin$Receptor.Subtype == 'HR+HER2+', ]
-# 
-# # Filter subset for 'BP.HER2.2..4' being "HER2+/BP_Her2orBasal" or "HER2+/BP_Luminal"
-# filtered_clin <- clin_subset[clin_subset$`BP.HER2.2..4` == "HER2+/BP_Her2orBasal" | 
-#                              clin_subset$`BP.HER2.2..4` == "HER2+/BP_Luminal", ]
-# 
-# 
-# # Create a list of unique subtypes and treatments
-# unique_subtypes <- unique(filtered_clin$`BP.HER2.2..4`)
-# unique_treatments <- unique(filtered_clin$`Arm..short.name.`)
-# 
-# # Combine unique subtypes and treatments to create nodes
-# nodes <- data.frame(name = c(unique_subtypes, unique_treatments))
-# 
-# 
-# # Load networkD3 package
-# library(networkD3)
-install.packages("networkD3")
-library(networkD3)
+# Sample data for links
+links <- data.frame(source = c(0, 0, 0, 0), 
+                    target = c(1, 2, 3, 4), 
+                    value = c(26, 11, 7, 56)) 
 
-# Example Data: Nodes
-nodes <- data.frame(name = c("Category A", "Category B", "Category C",
-                             "Intermediate 1", "Intermediate 2",
-                             "Final Stage 1", "Final Stage 2"))
-
-# Example Data: Links
-links <- data.frame(source = c(0, 0, 1, 1, 2, 2, 3, 4, 4, 3),
-                    target = c(3, 4, 3, 4, 3, 4, 5, 5, 6, 6),
-                    value = c(10, 15, 25, 5, 15, 10, 30, 20, 15, 25))
-
-# Create Sankey Diagram
-sankey <- sankeyNetwork(Links = links, Nodes = nodes, Source = 'source',
+# Create the Sankey diagram
+sankey <- sankeyNetwork(Links = links, Nodes = nodes, Source = 'source', 
                         Target = 'target', Value = 'value', NodeID = 'name',
-                        units = 'Units', fontSize = 12, nodeWidth = 30)
+                        units = '%', fontSize = 12, nodeWidth = 18 )
 
-# Print the Sankey Diagram
+# Print the Sankey diagram
 sankey
 
+# Bar plots 
 
+# 4 Bar plot for each group respecively; "Immune_neg_DRD_neg", "Immune_neg_DRD_pos" ,"Immune_pos_DRD_neg_count" and Immune_pos_DRD_pos_count. 
+
+# Function to create the bar plot
+create_bar_plot <- function(data_subset, title) {
+  # Calculate the mean pCR rate and counts
+  pCR_rates <- aggregate(response.other.info ~ Arm..short.name., data = data_subset, FUN = mean)
+  pCR_rates$Counts <- table(data_subset$Arm..short.name.)[pCR_rates$Arm..short.name.]
+
+  # Filter for specified treatment arms
+  pCR_rates <- pCR_rates[pCR_rates$Arm..short.name. %in% c("Ctr", "VC", "Pembro"),]
+
+  # Create the bar plot
+  bar_plot <- ggplot(pCR_rates, aes(x = Arm..short.name., y = response.other.info, fill = Arm..short.name.)) +
+    geom_bar(stat = "identity") +
+    geom_text(aes(label = ifelse(round(response.other.info * 100) > 0, 
+                                 paste0(round(response.other.info * 100), "% (n = ", Counts, ")"), 
+                                 "")), 
+              position = position_dodge(width = 0.9), vjust = 1.8, color = "black", size = 4) +  
+    scale_fill_manual(values = c("#6BAED6", "#FDCC8A", "#FC8D59")) +  
+    labs(x = "Treatment Arm", y = "Estimated pCR Rate (%)", fill = "Treatment Arm") +  
+    theme_minimal() +  
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    ggtitle(title) +
+    theme(plot.title = element_text(hjust = 0.5))
+
+  return(bar_plot)
+}
+
+# Example usage of the function
+# pCR_rates_example <- ... # Make sure to define this data frame with
+
+# Apply the function for the two subsets
+bar_plot1 <- create_bar_plot(clin_TN[clin_TN$RPS.5 == "HER2-/Immune-/DRD.v3-",], "TN/Immune-/DRD-")
+bar_plot2 <- create_bar_plot(clin_TN[clin_TN$RPS.5 == "HER2-/Immune-/DRD.v3+",], "TN/Immune-/DRD+")
+bar_plot3 <- create_bar_plot(clin_TN[clin_TN$RPS.5 == "HER2-/Immune+" & clin_TN$DRD. == "0",],"TN/HER2-/Immune+/DRD-")
+bar_plot4 <- create_bar_plot(clin_TN[clin_TN$RPS.5 == "HER2-/Immune+" & clin_TN$DRD. == "1",],"TN/HER2-/Immune+/DRD+")
+
+
+# Print the bar plots
+print(bar_plot1)
+print(bar_plot2)
+print(bar_plot3)
+print(bar_plot4)
+```
+
+```{r combine bar plots, fig.width= 12 , fig.height= 7}
+
+# Combine the Bra plots ()
+print(bar_plot1+ bar_plot2 + bar_plot3+ bar_plot4)
 
 ```
+
+**Part(d)**: 
+
+**Sankey plot showing Immune/DRD subsets in HR+HER2-**
+
+**Results**: Comparing our findings to those from paper Figure 4(d):
+- We observe that the bar plot results contain the exact same information as Figure 4(d) in the paper.
+
+```{r Fig4 partd }
+
+# Use HR+HER2- subset
+
+# Define counts.
+clin_HR_pos_HER_neg  <- clin[clin$Receptor.Subtype == "HR+HER2-",]
+Immune_neg_DRD_neg_count2 <- sum(clin_HR_pos_HER_neg$RPS.5 == "HER2-/Immune-/DRD.v3-", na.rm = TRUE)
+Immune_neg_DRD_pos_count2 <- sum(clin_HR_pos_HER_neg$RPS.5 == "HER2-/Immune-/DRD.v3+", na.rm = TRUE)
+Immune_pos_DRD_neg_count2 <- sum(clin_HR_pos_HER_neg$RPS.5 == "HER2-/Immune+" & clin_HR_pos_HER_neg$DRD. == "0", na.rm = TRUE)
+Immune_pos_DRD_pos_count2 <- sum(clin_HR_pos_HER_neg$RPS.5 == "HER2-/Immune+"& clin_HR_pos_HER_neg$DRD. == "1", na.rm = TRUE)
+
+# Example format: "HR-HER2+; 30% (n=100)"
+nodes <- data.frame(name = c(
+  paste("HR+HER2- ;","(n=",  nrow(clin_HR_pos_HER_neg), ")", sep=""),
+  paste("HR+HER2-/Immune-/DRD+;", ceiling(Immune_neg_DRD_neg_count2  / nrow(clin_HR_pos_HER_neg) * 100), "% (n=", Immune_neg_DRD_neg_count, ")", sep=""), 
+  paste("HR+HER2-/Immune-/DRD-;", ceiling(Immune_neg_DRD_pos_count2 / nrow(clin_HR_pos_HER_neg) * 100), "% (n=", Immune_neg_DRD_pos_count, ")", sep=""),
+  paste("HR+HER2-/Immune+/DRD-;", ceiling(Immune_pos_DRD_neg_count2 / nrow(clin_HR_pos_HER_neg) * 100), "% (n=", Immune_pos_DRD_neg_count, ")", sep=""),
+   paste("HR+HER2-/Immune+/DRD+;", ceiling(Immune_pos_DRD_pos_count / nrow(clin_HR_pos_HER_neg) * 100), "% (n=", Immune_pos_DRD_pos_count, ")", sep="")
+))
+
+# Sample data for links
+links <- data.frame(source = c(0, 0, 0, 0), 
+                    target = c(1, 2, 3, 4), 
+                    value = c(51, 10, 20, 19)) 
+
+# Create the Sankey diagram
+sankey <- sankeyNetwork(Links = links, Nodes = nodes, Source = 'source', 
+                        Target = 'target', Value = 'value', NodeID = 'name',
+                        units = '%', fontSize = 12, nodeWidth = 18 )
+
+# Print the Sankey diagram
+sankey
+
+```
+
+**Part(e)**: 
+
+**Sankey plot of HER2+/BP_Luminal and HER2+/BP_Her2_or_Basal in HER2+, with barplots of pCR rates in Ctr, TDM1/P and MK2206 arms.**
+
+**Results**: Comparing our findings to those from paper Figure 4(e):
+- We observe that the bar plot results contain the exact same information as Figure 4(e) in the paper.
+
+
+```{r Figure4 parte}
+
+# Subset clin for "HER2+" 
+clin_HER2_pos <- clin[clin$Receptor.Subtype == "HR-HER2+"| clin$Receptor.Subtype == "HR+HER2+",]
+
+
+# Define count of "HR-HER2+", "HR+HER2", "HER2+/BP-HER2_or_Basal" , ""HER2+/BP-Luminal" an dTotal number of rows for defining the percentages.
+hr_neg_count <- sum(clin_HER2_pos$Receptor.Subtype == "HR-HER2+")
+hr_pos_count <- sum(clin_HER2_pos$Receptor.Subtype == "HR+HER2+")
+BP_HER2_or_Basal_count <- sum(clin_HER2_pos$BP.HER2.2..4 == "HER2+/BP_Her2orBasal", na.rm = TRUE)
+BP_Luminal_count <- sum(clin_HER2_pos$BP.HER2.2..4 == "HER2+/BP_Luminal", na.rm = TRUE)
+total_count <- nrow(clin_HER2_pos)
+
+
+# Example format: "HR-HER2+; 30% (n=100)"
+nodes <- data.frame(name = c(
+  paste("HR-HER2+;", round(hr_neg_count / total_count * 100), "% (n=", hr_neg_count , ")", sep=""),
+  paste("HR+HER2+;", round(hr_pos_count / total_count * 100), "% (n=", hr_pos_count, ")", sep=""), 
+  paste("HER2+/BP-HER2_or_Basal;", round(BP_HER2_or_Basal_count / total_count * 100), "% (n=", BP_HER2_or_Basal_count, ")", sep=""),
+  paste("HER2+/BP-Luminal;", round(BP_Luminal_count / total_count * 100), "% (n=", BP_Luminal_count, ")", sep="")
+))
+
+# Sample data for links
+links <- data.frame(source = c(0, 0, 1, 1), 
+                    target = c(2, 3, 2, 3), 
+                    value = c(36, 1, 76, 24)) 
+
+# Create the Sankey diagram
+sankey <- sankeyNetwork(Links = links, Nodes = nodes, Source = 'source', 
+                        Target = 'target', Value = 'value', NodeID = 'name',
+                        units = '%', fontSize = 12, nodeWidth = 18)
+
+# Print the Sankey diagram
+sankey
+
+```
+
+```{r Fig4e barplot1, fig.width= 11 , fig.height= 6 }
+
+# 1. bar_plot1 "HER2_pos_BP_Her2orBasal" group
+
+# Filter clin_HER2_pos to include only the desired condition
+clin_HER2_pos_BP_Her2orBasal <- clin_HER2_pos[clin_HER2_pos$BP.HER2.2..4 == "HER2+/BP_Her2orBasal",]
+
+# Calculate the mean pCR rate for each treatment arm and receptor subtype
+pCR_rate <- aggregate(response.other.info ~ Arm..short.name., data = clin_HER2_pos_BP_Her2orBasal, FUN = mean)
+
+# Calculate the number of occurrences for each arm and add it to pCR_rate
+pCR_rate$Counts <- table(clin_HER2_pos_BP_Her2orBasal$Arm..short.name.)[pCR_rate$Arm..short.name.]
+
+
+# Keeping only 3 arms "Ctr", "MK2206", "Pertuzumab"
+selected_arms <- c("Ctr", "MK2206", "Pertuzumab")
+pCR_rate <- pCR_rate[pCR_rate$Arm..short.name. %in% selected_arms,]
+
+
+# Define a ggplot object with a bar plot
+bar_plot1 <- ggplot(pCR_rate, aes(x = Arm..short.name., y = response.other.info, fill = Arm..short.name.)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = paste0(round(response.other.info * 100),  "% (n = ", Counts, ")")),  
+            position = position_dodge(width = 0.9), 
+            vjust = 1.8,  
+            color = "black", 
+            size = 4) +  
+  scale_fill_manual(values = c("#6BAED6", "#FDCC8A", "#FC8D59")) +  
+  labs(x = "Treatment Arm", y = "Estimated pCR Rate (%)", fill = "Treatment Arm") +  
+  theme_minimal() +  
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  ggtitle("HER2+/ BP_Her2orBasal Subset") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+# Print the bar plot
+print(bar_plot1)
+
+# 2. 1. bar_plot1 "HER2/BP Luminal" group
+
+# Filter clin_HER2_pos to include only the desired condition
+clin_HER2_pos_BP_Luminall <- clin_HER2_pos[clin_HER2_pos$BP.HER2.2..4 == "HER2+/BP_Luminal",]
+
+# Calculate the mean pCR rate for each treatment arm and receptor subtype
+pCR_rate2 <- aggregate(response.other.info ~ Arm..short.name., data = clin_HER2_pos_BP_Luminall, FUN = mean)
+
+# Filter pCR_rate2 for specific arms 
+pCR_rate2 <- pCR_rate2[pCR_rate2$Arm..short.name. %in% selected_arms,]
+
+# Calculate the number of occurrences for each arm and add it to pCR_rate
+pCR_rate2$Counts2 <- table(clin_HER2_pos_BP_Luminall$Arm..short.name.)[pCR_rate$Arm..short.name.]
+
+# Define a ggplot object with a bar plot
+bar_plot2 <- ggplot(pCR_rate2, aes(x = Arm..short.name., y = response.other.info, fill = Arm..short.name.)) + 
+  geom_bar(stat = "identity") + 
+  geom_text(aes(label = paste0(round(response.other.info * 100), "% (n = ", Counts2, ")")),  
+            position = position_dodge(width = 0.9), 
+            vjust = 1.8,  
+            color = "black", 
+            size = 4) +  
+  scale_fill_manual(values = c("#6BAED6", "#FDCC8A", "#FC8D59")) +  # Adjust colors if necessary
+  labs(x = "Treatment Arm", y = "Estimated pCR Rate (%)", fill = "Treatment Arm") +  
+  theme_minimal() +  
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  ggtitle("HER2/BP Luminal") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+# Print the bar plot
+print(bar_plot2)
+
+# Combine Figure 4e graphs
+print(bar_plot1 + bar_plot2)
+
+```
+
