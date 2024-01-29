@@ -38,7 +38,7 @@ library(networkD3)
 
 Load multiassay .rds file, extract clinical, expression and annotations data; prepare gene expression data for analysis.
 
-```{r multiassay extraction, echo=FALSE}
+```{r multiassay extraction}
 # Load your multiassay result and extract clinical data , expression data and annotation
 
 #load mae obj
