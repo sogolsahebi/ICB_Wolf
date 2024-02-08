@@ -30,7 +30,6 @@ clin$response <- Get_Response(data = clin)
 # Reordering Columns for Structured Data
 clin <- clin[, c("patient", "sex", "age", "primary", "histo", "stage", "response.other.info", "recist", "response", "drug_type", "dna","dna_info", "rna","rna_info", "t.pfs", "pfs", "t.os", "os")]
 
-
 # Formatting clinical data using a custom function
 clin <- format_clin_data(clin_original, "patient", selected_cols, clin)
 

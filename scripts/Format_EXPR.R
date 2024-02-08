@@ -20,7 +20,6 @@ case <- read.csv(case_path, sep = ";")
 expr <- expr[, colnames(expr) %in% case[case$expr == 1, ]$patient]
 
 expr <- as.data.frame(lapply(expr, as.numeric), row.names = rownames(expr))
-colnames(expr) <- sub("^X", "", colnames(expr))
 
 #TODO: Number of missing values.
 sum(is.na(expr))  #2831 NA values.

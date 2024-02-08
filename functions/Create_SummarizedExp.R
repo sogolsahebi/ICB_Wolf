@@ -303,8 +303,6 @@ Create_SummarizedExperiments = function( input_dir, study , expr_bool , snv_bool
   # coverage= data$coverage
   # indel_bool= data$indel_bool
   
-  #add (TODO)
-  #input_dir = "~/BHK lab/Ravi_Testing/files/"
   
   # Path to processed data 
   case_file = paste( input_dir , "cased_sequenced.csv" , sep="/" )
@@ -365,8 +363,6 @@ Create_SummarizedExperiments = function( input_dir, study , expr_bool , snv_bool
       
       expr = read.csv( expr_file , sep=";" , stringsAsFactors=FALSE )
       colnames(expr) <- str_replace_all(colnames(expr), '[-\\.]', '_')
-      #TODO(added for ICB_Wolf)
-      colnames(expr) <- sub("^X", "", colnames(expr))
       se_list[["expr"]] <- Create_EXP_SummarizedExperiment(
         study=study, 
         case=case, 

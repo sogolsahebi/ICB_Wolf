@@ -74,4 +74,3 @@ get_MultiAssayExp <- function(study, input_dir, expr_with_counts_isoforms=FALSE)
   
   return(MultiAssayExperiment(experiments=se_list, colData=coldata))
 }
-

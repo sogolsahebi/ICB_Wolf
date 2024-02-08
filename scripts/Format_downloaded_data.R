@@ -18,6 +18,9 @@ clin <- clin[-1, ]
 # Rename the 'Patient.Identifier' column to 'patient'
 colnames(clin)[colnames(clin) == "Patient Identifier"] <- "patient"
 
+# Add "X" to patient column for matching purpose.
+clin$patient <- paste0("X", clin$patient)
+
 # Save clinical data as CLIN.txt
 clin_output_path <- "~/BHK lab/ICB_Wolf/files/CLIN.txt"
 write.table(clin, clin_output_path, quote = FALSE, sep = "\t", row.names = FALSE)
@@ -27,16 +30,15 @@ expr_file_path <- "~/BHK lab/ICB_Wolf/source_data/GSE194040_ISPY2ResID_AgilentGe
 
 # Read and process expression data
 expr <- read.table(expr_file_path, header = TRUE, sep = "\t")
-colnames(expr) <- sub("^X", "", colnames(expr))
 
 # Confirm no duplication.
 all(!duplicated(colnames(clin))) ==  TRUE
 
 # Calculate the row-wise average of gene expression data from two samples ("629606.GPL16233" and "629606.GPL20078")
 # and store it in a new column ('629606'), ignoring missing values
-expr$`629606` <- rowMeans(sapply(expr[c("629606.GPL16233", "629606.GPL20078")], as.numeric), na.rm = TRUE)
-expr$`629606.GPL16233` <- NULL
-expr$`629606.GPL20078` <- NULL #now dim(expr) is 19134   987.
+expr$`X629606` <- rowMeans(sapply(expr[c("X629606.GPL16233", "X629606.GPL20078")], as.numeric), na.rm = TRUE)
+expr$`X629606.GPL16233` <- NULL
+expr$`X629606.GPL20078` <- NULL #now dim(expr) is 19134   987.
 
 # Sort the row names of 'expr'
 expr <- expr[sort(rownames(expr)), ]
