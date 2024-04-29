@@ -24,6 +24,9 @@ clin <- cbind(clin_original[, selected_cols], "Breast", "F", "microarray", NA, N
 # Set new column names.
 colnames(clin) <- c("patient", "drug_type", "response.other.info", "primary", "sex", "rna", "rna_info", "age", "stage", "recist", "t.os", "t.pfs", "histo", "os", "pfs", "dna", "dna_info", "response")
 
+# Correct "response.other.info" format.
+clin$response.other.info <- ifelse(clin$response.other.info == 0, "NR", "R")
+  
 # Define "response" based on values in "response.other.info"
 clin$response <- Get_Response(data = clin) 
 
