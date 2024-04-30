@@ -9,7 +9,6 @@
 <meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
 
 
-<meta name="author" content="Nasim Bondar Sahebi" />
 
 
 <title>QC Analysis of ICB Wolf mae</title>
@@ -1494,6 +1493,15 @@ HTMLWidgets.widget({
     var table = $table.DataTable(options);
     $el.data('datatable', table);
 
+    if ('rowGroup' in options) {
+      // Maintain RowGroup dataSrc when columns are reordered (#1109)
+      table.on('column-reorder', function(e, settings, details) {
+        var oldDataSrc = table.rowGroup().dataSrc();
+        var newDataSrc = details.mapping[oldDataSrc];
+        table.rowGroup().dataSrc(newDataSrc);
+      });
+    }
+
     // Unregister previous Crosstalk event subscriptions, if they exist
     if (instance.ctfilterSubscription) {
       instance.ctfilterHandle.off("change", instance.ctfilterSubscription);
@@ -1584,6 +1592,7 @@ HTMLWidgets.widget({
     };
 
     if (data.filter !== 'none') {
+      if (!data.hasOwnProperty('filterSettings')) data.filterSettings = {};
 
       filterRow.each(function(i, td) {
 
@@ -1647,7 +1656,7 @@ HTMLWidgets.widget({
             }
           });
           var $input2 = $x.children('select');
-          filter = $input2.selectize({
+          filter = $input2.selectize($.extend({
             options: $input2.data('options').map(function(v, i) {
               return ({text: v, value: v});
             }),
@@ -1666,8 +1675,7 @@ HTMLWidgets.widget({
               $td.data('filter', value.length > 0);
               table.draw();  // redraw table, and filters will be applied
             }
-          });
-          if (searchCol) filter[0].selectize.setValue(JSON.parse(searchCol));
+          }, data.filterSettings.select));
           filter[0].selectize.on('blur', function() {
             $x.hide().trigger('hide'); $input.parent().show(); $input.trigger('blur');
           });
@@ -1676,10 +1684,12 @@ HTMLWidgets.widget({
           var fun = function() {
             searchColumn(i, $input.val()).draw();
           };
-          if (server) {
-            fun = $.fn.dataTable.util.throttle(fun, options.searchDelay);
-          }
-          $input.on('input', fun);
+          // throttle searching for server-side processing
+          var throttledFun = $.fn.dataTable.util.throttle(fun, options.searchDelay);
+          $input.on('input', function(e, immediate) {
+            // always bypass throttling when immediate = true (via the updateSearch method)
+            (immediate || !server) ? fun() : throttledFun();
+          });
         } else if (inArray(type, ['number', 'integer', 'date', 'time'])) {
           var $x0 = $x;
           $x = $x0.children('div').first();
@@ -1765,13 +1775,11 @@ HTMLWidgets.widget({
               filter.val(v);
             }
           });
-          var formatDate = function(d, isoFmt) {
+          var formatDate = function(d) {
             d = scaleBack(d, scale);
             if (type === 'number') return d;
             if (type === 'integer') return parseInt(d);
             var x = new Date(+d);
-            var fmt = ('filterDateFmt' in data) ? data.filterDateFmt[i] : undefined;
-            if (fmt !== undefined && isoFmt === false) return x[fmt.method].apply(x, fmt.params);
             if (type === 'date') {
               var pad0 = function(x) {
                 return ('0' + x).substr(-2, 2);
@@ -1792,7 +1800,7 @@ HTMLWidgets.widget({
             start: [r1, r2],
             range: {min: r1, max: r2},
             connect: true
-          }, opts));
+          }, opts, data.filterSettings.slider));
           if (scale > 1) (function() {
             var t1 = r1, t2 = r2;
             var val = filter.val();
@@ -1807,13 +1815,28 @@ HTMLWidgets.widget({
                 start: [t1, t2],
                 range: {min: t1, max: t2},
                 connect: true
-              }, opts), true);
+              }, opts, data.filterSettings.slider), true);
               val = filter.val();
             }
             r1  = t1; r2 = t2;
           })();
+          // format with active column renderer, if defined
+          var colDef = data.options.columnDefs.find(function(def) {
+            return (def.targets === i || inArray(i, def.targets)) && 'render' in def;
+          });
           var updateSliderText = function(v1, v2) {
-            $span1.text(formatDate(v1, false)); $span2.text(formatDate(v2, false));
+            // we only know how to use function renderers
+            if (colDef && typeof colDef.render === 'function') {
+              var restore = function(v) {
+                v = scaleBack(v, scale);
+                return inArray(type, ['date', 'time']) ? new Date(+v) : v;
+              }
+              $span1.text(colDef.render(restore(v1), 'display'));
+              $span2.text(colDef.render(restore(v2), 'display'));
+            } else {
+              $span1.text(formatDate(v1));
+              $span2.text(formatDate(v2));
+            }
           };
           updateSliderText(r1, r2);
           var updateSlider = function(e) {
@@ -1846,7 +1869,7 @@ HTMLWidgets.widget({
         // processing
         if (server) {
           // if a search string has been pre-set, search now
-          if (searchCol) searchColumn(i, searchCol).draw();
+          if (searchCol) $input.trigger('input').trigger('change');
           return;
         }
 
@@ -1892,15 +1915,7 @@ HTMLWidgets.widget({
         $.fn.dataTable.ext.search.push(customFilter);
 
         // search for the preset search strings if it is non-empty
-        if (searchCol) {
-          if (inArray(type, ['factor', 'logical'])) {
-            filter[0].selectize.setValue(JSON.parse(searchCol));
-          } else if (type === 'character') {
-            $input.trigger('input');
-          } else if (inArray(type, ['number', 'integer', 'date', 'time'])) {
-            $input.trigger('change');
-          }
-        }
+        if (searchCol) $input.trigger('input').trigger('change');
 
       });
 
@@ -2548,8 +2563,9 @@ HTMLWidgets.widget({
           console.log('The search keyword for column ' + i + ' is undefined')
           return;
         }
-        $(td).find('input').first().val(v).trigger('input');
-        searchColumn(i, v);
+        // Update column search string and values on linked filter widgets.
+        // 'input' for factor and char filters, 'change' for numeric filters.
+        $(td).find('input').first().val(v).trigger('input', [true]).trigger('change');
       });
       table.draw();
     }
@@ -3477,7 +3493,9 @@ display: none;
 
 <h1 class="title toc-ignore">QC Analysis of ICB Wolf mae</h1>
 <h4 class="author">Nasim Bondar Sahebi</h4>
-<h4 class="date">2024 01 23</h4>
+<address class="author_afil">
+UofT student, Princess Margaret Cancer Center,University Health Network,
+Toronto, Ontario, Canada<br><h4 class="date">2024 01 23</h4>
 
 </div>
 
@@ -3512,18 +3530,18 @@ annotations data; prepare gene expression data for analysis.</p>
 mae &lt;- readRDS(&quot;~/BHK lab/ICB_Wolf/output/ICB_Wolf.rds&quot;)
 
 #extract Clinical data 
-clin &lt;- data.frame(colData(mae))
+clin &lt;- data.frame(colData(mae)) # Dim 987 x85
 
 #extract the expression data
-expr &lt;- assays(mae)[[&quot;expr&quot;]]
+expr &lt;- assays(mae)[[&quot;expr&quot;]] # Dim 18348 x 987
 
 #extracting the annotation 
 annot &lt;- data.frame(rowData(mae@ExperimentList$expr))
 
-# Display first few rows of the dataset
+# Display first few rows of the data set.
 DT::datatable(expr[1:8, 1:4])</code></pre>
-<div class="datatables html-widget html-fill-item" id="htmlwidget-25002126177a8930778d" style="width:100%;height:auto;"></div>
-<script type="application/json" data-for="htmlwidget-25002126177a8930778d">{"x":{"filter":"none","vertical":false,"data":[["ENSG00000000003.10","ENSG00000000005.5","ENSG00000000419.8","ENSG00000000457.9","ENSG00000000460.12","ENSG00000000938.8","ENSG00000000971.11","ENSG00000001036.9"],[9.2058,4.6488,12.258,9.988799999999999,9.297800000000001,7.5326,8.721,7.6301],[7.5586,4.2792,12.816,9.1309,8.5738,8.020200000000001,8.313499999999999,8.9642],[7.0909,5.0983,12.722,8.760199999999999,8.791499999999999,8.002599999999999,8.335900000000001,8.6309],[8.840199999999999,5.0612,12.975,8.7112,9.1821,8.5236,9.218,8.8627]],"container":"<table class=\"display\">\n  <thead>\n    <tr>\n      <th> <\/th>\n      <th>X756412<\/th>\n      <th>X111881<\/th>\n      <th>X451816<\/th>\n      <th>X243836<\/th>\n    <\/tr>\n  <\/thead>\n<\/table>","options":{"columnDefs":[{"className":"dt-right","targets":[1,2,3,4]},{"orderable":false,"targets":0},{"name":" ","targets":0},{"name":"X756412","targets":1},{"name":"X111881","targets":2},{"name":"X451816","targets":3},{"name":"X243836","targets":4}],"order":[],"autoWidth":false,"orderClasses":false}},"evals":[],"jsHooks":[]}</script>
+<div class="datatables html-widget html-fill-item" id="htmlwidget-86ed503a85f94c3972d3" style="width:100%;height:auto;"></div>
+<script type="application/json" data-for="htmlwidget-86ed503a85f94c3972d3">{"x":{"filter":"none","vertical":false,"data":[["ENSG00000000003.10","ENSG00000000005.5","ENSG00000000419.8","ENSG00000000457.9","ENSG00000000460.12","ENSG00000000938.8","ENSG00000000971.11","ENSG00000001036.9"],[9.2058,4.6488,12.258,9.988799999999999,9.297800000000001,7.5326,8.721,7.6301],[7.5586,4.2792,12.816,9.1309,8.5738,8.020200000000001,8.313499999999999,8.9642],[7.0909,5.0983,12.722,8.760199999999999,8.791499999999999,8.002599999999999,8.335900000000001,8.6309],[8.840199999999999,5.0612,12.975,8.7112,9.1821,8.5236,9.218,8.8627]],"container":"<table class=\"display\">\n  <thead>\n    <tr>\n      <th> <\/th>\n      <th>X756412<\/th>\n      <th>X111881<\/th>\n      <th>X451816<\/th>\n      <th>X243836<\/th>\n    <\/tr>\n  <\/thead>\n<\/table>","options":{"columnDefs":[{"className":"dt-right","targets":[1,2,3,4]},{"orderable":false,"targets":0},{"name":" ","targets":0},{"name":"X756412","targets":1},{"name":"X111881","targets":2},{"name":"X451816","targets":3},{"name":"X243836","targets":4}],"order":[],"autoWidth":false,"orderClasses":false}},"evals":[],"jsHooks":[]}</script>
 </div>
 <div id="treatment-checking" class="section level2">
 <h2>Treatment checking</h2>
@@ -3541,6 +3559,7 @@ cat(&quot;Paclitaxel + Pembrolizumab treatments:&quot;, nrow(clin[clin$treatment
 <pre><code>## Pembro treatments: 69</code></pre>
 <pre class="r"><code># Check if all &#39;Pembro&#39; entries match &#39;IO+chemo&#39; in treatment and &#39;Paclitaxel + Pembrolizumab&#39; in treatmentid
 pembro_data &lt;- clin[clin$Arm..short.name. == &quot;Pembro&quot;, ]
+
 cat(&quot;All &#39;Pembro&#39; match &#39;IO+chemo&#39;:&quot;, all(pembro_data$treatment == &quot;IO+chemo&quot;), &quot;\n&quot;)</code></pre>
 <pre><code>## All &#39;Pembro&#39; match &#39;IO+chemo&#39;: TRUE</code></pre>
 <pre class="r"><code>cat(&quot;All &#39;Pembro&#39; match &#39;Paclitaxel + Pembrolizumab&#39;:&quot;, all(pembro_data$treatmentid == &quot;Paclitaxel + Pembrolizumab&quot;), &quot;\n&quot;)</code></pre>
@@ -3549,8 +3568,8 @@ cat(&quot;All &#39;Pembro&#39; match &#39;IO+chemo&#39;:&quot;, all(pembro_data$
 <div id="paper-fig1-trial-design-and-data." class="section level2">
 <h2>Paper Fig1: Trial design and data.</h2>
 <p><strong>PCR rate across arms by receptor subtype:</strong> - PCR and
-arms is stored in column <code>response.other.info</code> and which was
-set in <code>Format_CLIN.R</code>. - Arm is stored in column
+arms is stored in column <code>pCR</code> and which was set in
+<code>Format_CLIN.R</code>. - Arm is stored in column
 <code>Arm..short.name.</code> column - PCR rate is stored
 <code>Receptor.Subtype</code> column</p>
 <p><strong>Results</strong>: Comparing our findings to those from paper
@@ -3572,10 +3591,10 @@ respectively</li>
 subtypes, with the most consistent results seen in the HR-HER2- (TN)
 subtype.</p>
 <pre class="r"><code># Calculate the mean pCR rate for each treatment arm and receptor subtype
-pCR_rates &lt;- aggregate(response.other.info ~ Arm..short.name. + Receptor.Subtype, data = clin, FUN = mean)
+pCR_rates &lt;- aggregate(pCR ~ Arm..short.name. + Receptor.Subtype, data = clin, FUN = mean)
 
 # Calculate the total for each Receptor.Subtype, assuming totals are already in the correct format
-totals &lt;- aggregate(response.other.info ~ Receptor.Subtype, data = clin, FUN = mean)
+totals &lt;- aggregate(pCR ~ Receptor.Subtype, data = clin, FUN = mean)
 totals$Arm..short.name. &lt;- &quot;Total&quot;
 
 # Combine the mean percentages and the totals
@@ -3585,9 +3604,9 @@ pCR_rates_with_totals &lt;- rbind(pCR_rates, totals)
 colors &lt;- c(&quot;#6BAED6&quot;, &quot;#3182BD&quot;, &quot;#9ECAE1&quot;, &quot;#CCCCCC&quot;, &quot;#FDCC8A&quot;, &quot;#FC8D59&quot;, &quot;#D7301F&quot;, &quot;#C6DBEF&quot;, &quot;#969696&quot;, &quot;#8C6BB1&quot;, &quot;black&quot;, &quot;#BADA55&quot;)
 
 # Define a ggplot object with a bar plot
-ggplot_object &lt;- ggplot(pCR_rates_with_totals, aes(x = Receptor.Subtype, y = response.other.info, fill = Arm..short.name.)) +
+ggplot_object &lt;- ggplot(pCR_rates_with_totals, aes(x = Receptor.Subtype, y = pCR, fill = Arm..short.name.)) +
   geom_bar(stat = &quot;identity&quot;, position = position_dodge()) +  
-  geom_text(aes(label = paste0(round(response.other.info, 2)*100)),  
+  geom_text(aes(label = paste0(round(pCR, 2)*100)),  
             position = position_dodge(width = 0.9), 
             vjust = -0.7,  
             color = &quot;black&quot;, 
@@ -3606,9 +3625,6 @@ Figure 1(d):</p>
 information as Figure 1(d) in the paper.</li>
 </ul>
 <pre class="r"><code>#2.Part d
-
-# Load the ggplot2 library
-library(ggplot2)
 
 # Create a data frame with the number of patients for each treatment arm
 arm_counts_df&lt;- as.data.frame(table(clin$Arm..short.name.))
@@ -3631,7 +3647,7 @@ print(ggplot)</code></pre>
 <pre class="r"><code># Print the dimensions of the &#39;clin&#39;  and verify with the paper results
 cat(&quot;Dimensions of &#39;clin&#39;:&quot;, paste(dim(clin)), 
     &quot;\nFigure 1d, section &#39;ISPY-990 mRNA/PPA DATA&#39; of the paper also mentions Clinical data number is (n=987)\n\n&quot;)</code></pre>
-<pre><code>## Dimensions of &#39;clin&#39;: 987 85 
+<pre><code>## Dimensions of &#39;clin&#39;: 987 86 
 ## Figure 1d, section &#39;ISPY-990 mRNA/PPA DATA&#39; of the paper also mentions Clinical data number is (n=987)</code></pre>
 <pre class="r"><code># Print the dimensions of the &#39;expr&#39; 
 cat(&quot;Dimensions of &#39;expr&#39;:&quot;, paste(dim(expr)), &quot;\n&quot;)</code></pre>
@@ -3685,10 +3701,10 @@ pie_chart &lt;- ggplot(clin_Immune, aes(x = &quot;&quot;, y = Counts, fill = Imm
 # Filter clin_TN to include only the Pembro arm
 clin_TN_pembro &lt;- clin_TN[clin_TN$Arm..short.name. == &quot;Pembro&quot;,]
 
-# Calculate mean response.other.info values for each Immune Status in the Pembro arm
-response_data &lt;- aggregate(response.other.info ~ Immune., data = clin_TN_pembro, FUN = mean, na.rm = TRUE)
+# Calculate mean pCR values for each Immune Status in the Pembro arm
+response_data &lt;- aggregate(pCR ~ Immune., data = clin_TN_pembro, FUN = mean, na.rm = TRUE)
 names(response_data) &lt;- c(&quot;Immune_Status&quot;, &quot;Mean_Response&quot;)
-response_data$Counts &lt;- aggregate(response.other.info ~ Immune., data = clin_TN_pembro, FUN = length)$response.other.info
+response_data$Counts &lt;- aggregate(pCR ~ Immune., data = clin_TN_pembro, FUN = length)$pCR
 
 # Add a new column to the data frame with the percentages
 response_data$Percentage &lt;- (response_data$Counts / sum(response_data$Counts)) * 100
@@ -3711,7 +3727,7 @@ bar_chart &lt;- ggplot(response_data, aes(x = Labels, y = Mean_Response, fill = 
 
 
 # Perform to extract p-value
-fisher_result &lt;- fisher.test(table(clin_TN_pembro$response.other.info, clin_TN_pembro$Immune.))
+fisher_result &lt;- fisher.test(table(clin_TN_pembro$pCR, clin_TN_pembro$Immune.))
 p_value &lt;- round(fisher_result$p.value, 4)
 
 # Annotate the p-value on the bar chart
@@ -3760,10 +3776,10 @@ pie_chart_DRD &lt;- ggplot(clin_DRD, aes(x = &quot;&quot;, y = Counts, fill = DR
 # Filter clin_TN to include only the VC arm
 clin_TN_VC &lt;- clin_TN[clin_TN$Arm..short.name. == &quot;VC&quot;,]
 
-# Calculate mean response.other.info values for each DRD Status in the VC arm
-response_data_VC &lt;- aggregate(response.other.info ~ DRD., data = clin_TN_VC, FUN = mean, na.rm = TRUE)
+# Calculate mean pCR values for each DRD Status in the VC arm
+response_data_VC &lt;- aggregate(pCR ~ DRD., data = clin_TN_VC, FUN = mean, na.rm = TRUE)
 names(response_data_VC) &lt;- c(&quot;DRD_Status&quot;, &quot;Mean_Response&quot;)
-response_data_VC$Counts &lt;- aggregate(response.other.info ~ DRD., data = clin_TN_VC, FUN = length)$response.other.info
+response_data_VC$Counts &lt;- aggregate(pCR ~ DRD., data = clin_TN_VC, FUN = length)$pCR
 
 # Add a new column to the data frame with the percentages
 response_data_VC$Percentage &lt;- (response_data_VC$Counts / sum(response_data_VC$Counts)) * 100
@@ -3785,7 +3801,7 @@ bar_chart_DRD_VC &lt;- ggplot(response_data_VC, aes(x = Labels, y = Mean_Respons
   theme(plot.title = element_text(hjust = 0.5)) 
 
 # Perform Fisher&#39;s exact test
-fisher_result_DRD_VC &lt;- fisher.test(table(clin_TN_VC$response.other.info, clin_TN_VC$DRD.))
+fisher_result_DRD_VC &lt;- fisher.test(table(clin_TN_VC$pCR, clin_TN_VC$DRD.))
 p_value_DRD_VC &lt;- round(fisher_result_DRD_VC$p.value, 5)
 
 # Annotate the p-value on the DRD bar chart for the VC arm
@@ -3840,8 +3856,8 @@ sankey &lt;- sankeyNetwork(Links = links, Nodes = nodes, Source = &#39;source&#3
 
 # Print the Sankey diagram
 sankey</code></pre>
-<div class="sankeyNetwork html-widget html-fill-item" id="htmlwidget-2919d6474036664e87d0" style="width:672px;height:480px;"></div>
-<script type="application/json" data-for="htmlwidget-2919d6474036664e87d0">{"x":{"links":{"source":[0,0,0,0],"target":[1,2,3,4],"value":[26,11,7,56]},"nodes":{"name":["TN;(n=363)","TN/Immune-/DRD+;26% (n=93)","TN/Immune-/DRD-;12% (n=41)","TN/Immune+/DRD-;8% (n=27)","TN/Immune+/DRD+;56% (n=202)"],"group":["TN;(n=363)","TN/Immune-/DRD+;26% (n=93)","TN/Immune-/DRD-;12% (n=41)","TN/Immune+/DRD-;8% (n=27)","TN/Immune+/DRD+;56% (n=202)"]},"options":{"NodeID":"name","NodeGroup":"name","LinkGroup":null,"colourScale":"d3.scaleOrdinal(d3.schemeCategory20);","fontSize":12,"fontFamily":null,"nodeWidth":18,"nodePadding":10,"units":"%","margin":{"top":null,"right":null,"bottom":null,"left":null},"iterations":32,"sinksRight":true}},"evals":[],"jsHooks":[]}</script>
+<div class="sankeyNetwork html-widget html-fill-item" id="htmlwidget-c083cdf83a788d602aaf" style="width:672px;height:480px;"></div>
+<script type="application/json" data-for="htmlwidget-c083cdf83a788d602aaf">{"x":{"links":{"source":[0,0,0,0],"target":[1,2,3,4],"value":[26,11,7,56]},"nodes":{"name":["TN;(n=363)","TN/Immune-/DRD+;26% (n=93)","TN/Immune-/DRD-;12% (n=41)","TN/Immune+/DRD-;8% (n=27)","TN/Immune+/DRD+;56% (n=202)"],"group":["TN;(n=363)","TN/Immune-/DRD+;26% (n=93)","TN/Immune-/DRD-;12% (n=41)","TN/Immune+/DRD-;8% (n=27)","TN/Immune+/DRD+;56% (n=202)"]},"options":{"NodeID":"name","NodeGroup":"name","LinkGroup":null,"colourScale":"d3.scaleOrdinal(d3.schemeCategory20);","fontSize":12,"fontFamily":null,"nodeWidth":18,"nodePadding":10,"units":"%","margin":{"top":null,"right":null,"bottom":null,"left":null},"iterations":32,"sinksRight":true}},"evals":[],"jsHooks":[]}</script>
 <pre class="r"><code># Bar plots 
 
 # 4 Bar plot for each group respecively; &quot;Immune_neg_DRD_neg&quot;, &quot;Immune_neg_DRD_pos&quot; ,&quot;Immune_pos_DRD_neg_count&quot; and Immune_pos_DRD_pos_count. 
@@ -3849,17 +3865,17 @@ sankey</code></pre>
 # Function to create the bar plot
 create_bar_plot &lt;- function(data_subset, title) {
   # Calculate the mean pCR rate and counts
-  pCR_rates &lt;- aggregate(response.other.info ~ Arm..short.name., data = data_subset, FUN = mean)
+  pCR_rates &lt;- aggregate(pCR ~ Arm..short.name., data = data_subset, FUN = mean)
   pCR_rates$Counts &lt;- table(data_subset$Arm..short.name.)[pCR_rates$Arm..short.name.]
 
   # Filter for specified treatment arms
   pCR_rates &lt;- pCR_rates[pCR_rates$Arm..short.name. %in% c(&quot;Ctr&quot;, &quot;VC&quot;, &quot;Pembro&quot;),]
 
   # Create the bar plot
-  bar_plot &lt;- ggplot(pCR_rates, aes(x = Arm..short.name., y = response.other.info, fill = Arm..short.name.)) +
+  bar_plot &lt;- ggplot(pCR_rates, aes(x = Arm..short.name., y = pCR, fill = Arm..short.name.)) +
     geom_bar(stat = &quot;identity&quot;) +
-    geom_text(aes(label = ifelse(round(response.other.info * 100) &gt; 0, 
-                                 paste0(round(response.other.info * 100), &quot;% (n = &quot;, Counts, &quot;)&quot;), 
+    geom_text(aes(label = ifelse(round(pCR * 100) &gt; 0, 
+                                 paste0(round(pCR * 100), &quot;% (n = &quot;, Counts, &quot;)&quot;), 
                                  &quot;&quot;)), 
               position = position_dodge(width = 0.9), vjust = 1.8, color = &quot;black&quot;, size = 4) +  
     scale_fill_manual(values = c(&quot;#6BAED6&quot;, &quot;#FDCC8A&quot;, &quot;#FC8D59&quot;)) +  
@@ -3871,9 +3887,6 @@ create_bar_plot &lt;- function(data_subset, title) {
 
   return(bar_plot)
 }
-
-# Example usage of the function
-# pCR_rates_example &lt;- ... # Make sure to define this data frame with
 
 # Apply the function for the two subsets
 bar_plot1 &lt;- create_bar_plot(clin_TN[clin_TN$RPS.5 == &quot;HER2-/Immune-/DRD.v3-&quot;,], &quot;TN/Immune-/DRD-&quot;)
@@ -3933,8 +3946,8 @@ sankey &lt;- sankeyNetwork(Links = links, Nodes = nodes, Source = &#39;source&#3
 
 # Print the Sankey diagram
 sankey</code></pre>
-<div class="sankeyNetwork html-widget html-fill-item" id="htmlwidget-78e26551bbd428eebb7a" style="width:672px;height:480px;"></div>
-<script type="application/json" data-for="htmlwidget-78e26551bbd428eebb7a">{"x":{"links":{"source":[0,0,0,0],"target":[1,2,3,4],"value":[51,10,20,19]},"nodes":{"name":["HR+HER2- ;(n=379)","HR+HER2-/Immune-/DRD+;51% (n=93)","HR+HER2-/Immune-/DRD-;10% (n=41)","HR+HER2-/Immune+/DRD-;21% (n=27)","HR+HER2-/Immune+/DRD+;54% (n=202)"],"group":["HR+HER2- ;(n=379)","HR+HER2-/Immune-/DRD+;51% (n=93)","HR+HER2-/Immune-/DRD-;10% (n=41)","HR+HER2-/Immune+/DRD-;21% (n=27)","HR+HER2-/Immune+/DRD+;54% (n=202)"]},"options":{"NodeID":"name","NodeGroup":"name","LinkGroup":null,"colourScale":"d3.scaleOrdinal(d3.schemeCategory20);","fontSize":12,"fontFamily":null,"nodeWidth":18,"nodePadding":10,"units":"%","margin":{"top":null,"right":null,"bottom":null,"left":null},"iterations":32,"sinksRight":true}},"evals":[],"jsHooks":[]}</script>
+<div class="sankeyNetwork html-widget html-fill-item" id="htmlwidget-82e3a3ced47a3b0db69c" style="width:672px;height:480px;"></div>
+<script type="application/json" data-for="htmlwidget-82e3a3ced47a3b0db69c">{"x":{"links":{"source":[0,0,0,0],"target":[1,2,3,4],"value":[51,10,20,19]},"nodes":{"name":["HR+HER2- ;(n=379)","HR+HER2-/Immune-/DRD+;51% (n=93)","HR+HER2-/Immune-/DRD-;10% (n=41)","HR+HER2-/Immune+/DRD-;21% (n=27)","HR+HER2-/Immune+/DRD+;54% (n=202)"],"group":["HR+HER2- ;(n=379)","HR+HER2-/Immune-/DRD+;51% (n=93)","HR+HER2-/Immune-/DRD-;10% (n=41)","HR+HER2-/Immune+/DRD-;21% (n=27)","HR+HER2-/Immune+/DRD+;54% (n=202)"]},"options":{"NodeID":"name","NodeGroup":"name","LinkGroup":null,"colourScale":"d3.scaleOrdinal(d3.schemeCategory20);","fontSize":12,"fontFamily":null,"nodeWidth":18,"nodePadding":10,"units":"%","margin":{"top":null,"right":null,"bottom":null,"left":null},"iterations":32,"sinksRight":true}},"evals":[],"jsHooks":[]}</script>
 <p><strong>Part(e)</strong>:</p>
 <p><strong>Sankey plot of HER2+/BP_Luminal and HER2+/BP_Her2_or_Basal in
 HER2+, with barplots of pCR rates in Ctr, TDM1/P and MK2206
@@ -3977,15 +3990,15 @@ sankey &lt;- sankeyNetwork(Links = links, Nodes = nodes, Source = &#39;source&#3
 
 # Print the Sankey diagram
 sankey</code></pre>
-<div class="sankeyNetwork html-widget html-fill-item" id="htmlwidget-12fa8eef79c7ef1de819" style="width:672px;height:480px;"></div>
-<script type="application/json" data-for="htmlwidget-12fa8eef79c7ef1de819">{"x":{"links":{"source":[0,0,1,1],"target":[2,3,2,3],"value":[36,1,76,24]},"nodes":{"name":["HR-HER2+;36% (n=89)","HR+HER2+;64% (n=156)","HER2+/BP-HER2_or_Basal;76% (n=185)","HER2+/BP-Luminal;24% (n=60)"],"group":["HR-HER2+;36% (n=89)","HR+HER2+;64% (n=156)","HER2+/BP-HER2_or_Basal;76% (n=185)","HER2+/BP-Luminal;24% (n=60)"]},"options":{"NodeID":"name","NodeGroup":"name","LinkGroup":null,"colourScale":"d3.scaleOrdinal(d3.schemeCategory20);","fontSize":12,"fontFamily":null,"nodeWidth":18,"nodePadding":10,"units":"%","margin":{"top":null,"right":null,"bottom":null,"left":null},"iterations":32,"sinksRight":true}},"evals":[],"jsHooks":[]}</script>
+<div class="sankeyNetwork html-widget html-fill-item" id="htmlwidget-5194761eccdd332af56d" style="width:672px;height:480px;"></div>
+<script type="application/json" data-for="htmlwidget-5194761eccdd332af56d">{"x":{"links":{"source":[0,0,1,1],"target":[2,3,2,3],"value":[36,1,76,24]},"nodes":{"name":["HR-HER2+;36% (n=89)","HR+HER2+;64% (n=156)","HER2+/BP-HER2_or_Basal;76% (n=185)","HER2+/BP-Luminal;24% (n=60)"],"group":["HR-HER2+;36% (n=89)","HR+HER2+;64% (n=156)","HER2+/BP-HER2_or_Basal;76% (n=185)","HER2+/BP-Luminal;24% (n=60)"]},"options":{"NodeID":"name","NodeGroup":"name","LinkGroup":null,"colourScale":"d3.scaleOrdinal(d3.schemeCategory20);","fontSize":12,"fontFamily":null,"nodeWidth":18,"nodePadding":10,"units":"%","margin":{"top":null,"right":null,"bottom":null,"left":null},"iterations":32,"sinksRight":true}},"evals":[],"jsHooks":[]}</script>
 <pre class="r"><code># 1. bar_plot1 &quot;HER2_pos_BP_Her2orBasal&quot; group
 
 # Filter clin_HER2_pos to include only the desired condition
 clin_HER2_pos_BP_Her2orBasal &lt;- clin_HER2_pos[clin_HER2_pos$BP.HER2.2..4 == &quot;HER2+/BP_Her2orBasal&quot;,]
 
 # Calculate the mean pCR rate for each treatment arm and receptor subtype
-pCR_rate &lt;- aggregate(response.other.info ~ Arm..short.name., data = clin_HER2_pos_BP_Her2orBasal, FUN = mean)
+pCR_rate &lt;- aggregate(pCR ~ Arm..short.name., data = clin_HER2_pos_BP_Her2orBasal, FUN = mean)
 
 # Calculate the number of occurrences for each arm and add it to pCR_rate
 pCR_rate$Counts &lt;- table(clin_HER2_pos_BP_Her2orBasal$Arm..short.name.)[pCR_rate$Arm..short.name.]
@@ -3997,9 +4010,9 @@ pCR_rate &lt;- pCR_rate[pCR_rate$Arm..short.name. %in% selected_arms,]
 
 
 # Define a ggplot object with a bar plot
-bar_plot1 &lt;- ggplot(pCR_rate, aes(x = Arm..short.name., y = response.other.info, fill = Arm..short.name.)) +
+bar_plot1 &lt;- ggplot(pCR_rate, aes(x = Arm..short.name., y = pCR, fill = Arm..short.name.)) +
   geom_bar(stat = &quot;identity&quot;) +
-  geom_text(aes(label = paste0(round(response.other.info * 100),  &quot;% (n = &quot;, Counts, &quot;)&quot;)),  
+  geom_text(aes(label = paste0(round(pCR * 100),  &quot;% (n = &quot;, Counts, &quot;)&quot;)),  
             position = position_dodge(width = 0.9), 
             vjust = 1.8,  
             color = &quot;black&quot;, 
@@ -4021,7 +4034,7 @@ print(bar_plot1)</code></pre>
 clin_HER2_pos_BP_Luminall &lt;- clin_HER2_pos[clin_HER2_pos$BP.HER2.2..4 == &quot;HER2+/BP_Luminal&quot;,]
 
 # Calculate the mean pCR rate for each treatment arm and receptor subtype
-pCR_rate2 &lt;- aggregate(response.other.info ~ Arm..short.name., data = clin_HER2_pos_BP_Luminall, FUN = mean)
+pCR_rate2 &lt;- aggregate(pCR ~ Arm..short.name., data = clin_HER2_pos_BP_Luminall, FUN = mean)
 
 # Filter pCR_rate2 for specific arms 
 pCR_rate2 &lt;- pCR_rate2[pCR_rate2$Arm..short.name. %in% selected_arms,]
@@ -4030,9 +4043,9 @@ pCR_rate2 &lt;- pCR_rate2[pCR_rate2$Arm..short.name. %in% selected_arms,]
 pCR_rate2$Counts2 &lt;- table(clin_HER2_pos_BP_Luminall$Arm..short.name.)[pCR_rate$Arm..short.name.]
 
 # Define a ggplot object with a bar plot
-bar_plot2 &lt;- ggplot(pCR_rate2, aes(x = Arm..short.name., y = response.other.info, fill = Arm..short.name.)) + 
+bar_plot2 &lt;- ggplot(pCR_rate2, aes(x = Arm..short.name., y = pCR, fill = Arm..short.name.)) + 
   geom_bar(stat = &quot;identity&quot;) + 
-  geom_text(aes(label = paste0(round(response.other.info * 100), &quot;% (n = &quot;, Counts2, &quot;)&quot;)),  
+  geom_text(aes(label = paste0(round(pCR * 100), &quot;% (n = &quot;, Counts2, &quot;)&quot;)),  
             position = position_dodge(width = 0.9), 
             vjust = 1.8,  
             color = &quot;black&quot;, 

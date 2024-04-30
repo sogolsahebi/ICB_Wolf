@@ -1,10 +1,14 @@
 ---
 title: "QC Analysis of ICB Wolf mae"
-author: "Nasim Bondar Sahebi"
+author:
+- name: "Nasim Bondar Sahebi"
+  affiliation:
+  - UofT student, Princess Margaret Cancer Center,University Health Network, Toronto, Ontario, Canada
 date: "2024 01 23"
 output:
   html_document: default
 ---
+
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
@@ -20,7 +24,6 @@ library(dplyr)
 library(tibble)
 library(patchwork)
 library(networkD3)
-
 ```
 
 ## Data Loading and Preparation
@@ -45,15 +48,15 @@ Load multiassay .rds file, extract clinical, expression and annotations data; pr
 mae <- readRDS("~/BHK lab/ICB_Wolf/output/ICB_Wolf.rds")
 
 #extract Clinical data 
-clin <- data.frame(colData(mae))
+clin <- data.frame(colData(mae)) # Dim 987 x85
 
 #extract the expression data
-expr <- assays(mae)[["expr"]]
+expr <- assays(mae)[["expr"]] # Dim 18348 x 987
 
 #extracting the annotation 
 annot <- data.frame(rowData(mae@ExperimentList$expr))
 
-# Display first few rows of the dataset
+# Display first few rows of the data set.
 DT::datatable(expr[1:8, 1:4])
 
 ```
@@ -71,14 +74,16 @@ cat("Pembro treatments:", nrow(clin[clin$Arm..short.name. == "Pembro", ]), "\n")
 
 # Check if all 'Pembro' entries match 'IO+chemo' in treatment and 'Paclitaxel + Pembrolizumab' in treatmentid
 pembro_data <- clin[clin$Arm..short.name. == "Pembro", ]
+
 cat("All 'Pembro' match 'IO+chemo':", all(pembro_data$treatment == "IO+chemo"), "\n")
 cat("All 'Pembro' match 'Paclitaxel + Pembrolizumab':", all(pembro_data$treatmentid == "Paclitaxel + Pembrolizumab"), "\n")
+
 
 ```
 ## Paper Fig1: Trial design and data.
 
 **PCR rate across arms by receptor subtype:**
-- PCR and arms is stored in column `response.other.info` and which was set in `Format_CLIN.R`.
+- PCR and arms is stored in column `pCR` and which was set in `Format_CLIN.R`.
 - Arm is stored in column `Arm..short.name.` column
 - PCR rate is stored `Receptor.Subtype` column
 
@@ -94,10 +99,10 @@ The study reveals slight differences in effectiveness across the subtypes, with 
 ```{r Fig1partc , fig.width= 9 , fig.height= 5 }
 
 # Calculate the mean pCR rate for each treatment arm and receptor subtype
-pCR_rates <- aggregate(response.other.info ~ Arm..short.name. + Receptor.Subtype, data = clin, FUN = mean)
+pCR_rates <- aggregate(pCR ~ Arm..short.name. + Receptor.Subtype, data = clin, FUN = mean)
 
 # Calculate the total for each Receptor.Subtype, assuming totals are already in the correct format
-totals <- aggregate(response.other.info ~ Receptor.Subtype, data = clin, FUN = mean)
+totals <- aggregate(pCR ~ Receptor.Subtype, data = clin, FUN = mean)
 totals$Arm..short.name. <- "Total"
 
 # Combine the mean percentages and the totals
@@ -107,9 +112,9 @@ pCR_rates_with_totals <- rbind(pCR_rates, totals)
 colors <- c("#6BAED6", "#3182BD", "#9ECAE1", "#CCCCCC", "#FDCC8A", "#FC8D59", "#D7301F", "#C6DBEF", "#969696", "#8C6BB1", "black", "#BADA55")
 
 # Define a ggplot object with a bar plot
-ggplot_object <- ggplot(pCR_rates_with_totals, aes(x = Receptor.Subtype, y = response.other.info, fill = Arm..short.name.)) +
+ggplot_object <- ggplot(pCR_rates_with_totals, aes(x = Receptor.Subtype, y = pCR, fill = Arm..short.name.)) +
   geom_bar(stat = "identity", position = position_dodge()) +  
-  geom_text(aes(label = paste0(round(response.other.info, 2)*100)),  
+  geom_text(aes(label = paste0(round(pCR, 2)*100)),  
             position = position_dodge(width = 0.9), 
             vjust = -0.7,  
             color = "black", 
@@ -129,9 +134,6 @@ print(ggplot_object )
 
 ```{r Fig1partd} 
 #2.Part d
-
-# Load the ggplot2 library
-library(ggplot2)
 
 # Create a data frame with the number of patients for each treatment arm
 arm_counts_df<- as.data.frame(table(clin$Arm..short.name.))
@@ -204,10 +206,10 @@ pie_chart <- ggplot(clin_Immune, aes(x = "", y = Counts, fill = Immune_Status)) 
 # Filter clin_TN to include only the Pembro arm
 clin_TN_pembro <- clin_TN[clin_TN$Arm..short.name. == "Pembro",]
 
-# Calculate mean response.other.info values for each Immune Status in the Pembro arm
-response_data <- aggregate(response.other.info ~ Immune., data = clin_TN_pembro, FUN = mean, na.rm = TRUE)
+# Calculate mean pCR values for each Immune Status in the Pembro arm
+response_data <- aggregate(pCR ~ Immune., data = clin_TN_pembro, FUN = mean, na.rm = TRUE)
 names(response_data) <- c("Immune_Status", "Mean_Response")
-response_data$Counts <- aggregate(response.other.info ~ Immune., data = clin_TN_pembro, FUN = length)$response.other.info
+response_data$Counts <- aggregate(pCR ~ Immune., data = clin_TN_pembro, FUN = length)$pCR
 
 # Add a new column to the data frame with the percentages
 response_data$Percentage <- (response_data$Counts / sum(response_data$Counts)) * 100
@@ -230,7 +232,7 @@ bar_chart <- ggplot(response_data, aes(x = Labels, y = Mean_Response, fill = Imm
 
 
 # Perform to extract p-value
-fisher_result <- fisher.test(table(clin_TN_pembro$response.other.info, clin_TN_pembro$Immune.))
+fisher_result <- fisher.test(table(clin_TN_pembro$pCR, clin_TN_pembro$Immune.))
 p_value <- round(fisher_result$p.value, 4)
 
 # Annotate the p-value on the bar chart
@@ -284,10 +286,10 @@ pie_chart_DRD <- ggplot(clin_DRD, aes(x = "", y = Counts, fill = DRD_Status)) +
 # Filter clin_TN to include only the VC arm
 clin_TN_VC <- clin_TN[clin_TN$Arm..short.name. == "VC",]
 
-# Calculate mean response.other.info values for each DRD Status in the VC arm
-response_data_VC <- aggregate(response.other.info ~ DRD., data = clin_TN_VC, FUN = mean, na.rm = TRUE)
+# Calculate mean pCR values for each DRD Status in the VC arm
+response_data_VC <- aggregate(pCR ~ DRD., data = clin_TN_VC, FUN = mean, na.rm = TRUE)
 names(response_data_VC) <- c("DRD_Status", "Mean_Response")
-response_data_VC$Counts <- aggregate(response.other.info ~ DRD., data = clin_TN_VC, FUN = length)$response.other.info
+response_data_VC$Counts <- aggregate(pCR ~ DRD., data = clin_TN_VC, FUN = length)$pCR
 
 # Add a new column to the data frame with the percentages
 response_data_VC$Percentage <- (response_data_VC$Counts / sum(response_data_VC$Counts)) * 100
@@ -309,7 +311,7 @@ bar_chart_DRD_VC <- ggplot(response_data_VC, aes(x = Labels, y = Mean_Response, 
   theme(plot.title = element_text(hjust = 0.5)) 
 
 # Perform Fisher's exact test
-fisher_result_DRD_VC <- fisher.test(table(clin_TN_VC$response.other.info, clin_TN_VC$DRD.))
+fisher_result_DRD_VC <- fisher.test(table(clin_TN_VC$pCR, clin_TN_VC$DRD.))
 p_value_DRD_VC <- round(fisher_result_DRD_VC$p.value, 5)
 
 # Annotate the p-value on the DRD bar chart for the VC arm
@@ -374,17 +376,17 @@ sankey
 # Function to create the bar plot
 create_bar_plot <- function(data_subset, title) {
   # Calculate the mean pCR rate and counts
-  pCR_rates <- aggregate(response.other.info ~ Arm..short.name., data = data_subset, FUN = mean)
+  pCR_rates <- aggregate(pCR ~ Arm..short.name., data = data_subset, FUN = mean)
   pCR_rates$Counts <- table(data_subset$Arm..short.name.)[pCR_rates$Arm..short.name.]
 
   # Filter for specified treatment arms
   pCR_rates <- pCR_rates[pCR_rates$Arm..short.name. %in% c("Ctr", "VC", "Pembro"),]
 
   # Create the bar plot
-  bar_plot <- ggplot(pCR_rates, aes(x = Arm..short.name., y = response.other.info, fill = Arm..short.name.)) +
+  bar_plot <- ggplot(pCR_rates, aes(x = Arm..short.name., y = pCR, fill = Arm..short.name.)) +
     geom_bar(stat = "identity") +
-    geom_text(aes(label = ifelse(round(response.other.info * 100) > 0, 
-                                 paste0(round(response.other.info * 100), "% (n = ", Counts, ")"), 
+    geom_text(aes(label = ifelse(round(pCR * 100) > 0, 
+                                 paste0(round(pCR * 100), "% (n = ", Counts, ")"), 
                                  "")), 
               position = position_dodge(width = 0.9), vjust = 1.8, color = "black", size = 4) +  
     scale_fill_manual(values = c("#6BAED6", "#FDCC8A", "#FC8D59")) +  
@@ -396,9 +398,6 @@ create_bar_plot <- function(data_subset, title) {
 
   return(bar_plot)
 }
-
-# Example usage of the function
-# pCR_rates_example <- ... # Make sure to define this data frame with
 
 # Apply the function for the two subsets
 bar_plot1 <- create_bar_plot(clin_TN[clin_TN$RPS.5 == "HER2-/Immune-/DRD.v3-",], "TN/Immune-/DRD-")
@@ -518,7 +517,7 @@ sankey
 clin_HER2_pos_BP_Her2orBasal <- clin_HER2_pos[clin_HER2_pos$BP.HER2.2..4 == "HER2+/BP_Her2orBasal",]
 
 # Calculate the mean pCR rate for each treatment arm and receptor subtype
-pCR_rate <- aggregate(response.other.info ~ Arm..short.name., data = clin_HER2_pos_BP_Her2orBasal, FUN = mean)
+pCR_rate <- aggregate(pCR ~ Arm..short.name., data = clin_HER2_pos_BP_Her2orBasal, FUN = mean)
 
 # Calculate the number of occurrences for each arm and add it to pCR_rate
 pCR_rate$Counts <- table(clin_HER2_pos_BP_Her2orBasal$Arm..short.name.)[pCR_rate$Arm..short.name.]
@@ -530,9 +529,9 @@ pCR_rate <- pCR_rate[pCR_rate$Arm..short.name. %in% selected_arms,]
 
 
 # Define a ggplot object with a bar plot
-bar_plot1 <- ggplot(pCR_rate, aes(x = Arm..short.name., y = response.other.info, fill = Arm..short.name.)) +
+bar_plot1 <- ggplot(pCR_rate, aes(x = Arm..short.name., y = pCR, fill = Arm..short.name.)) +
   geom_bar(stat = "identity") +
-  geom_text(aes(label = paste0(round(response.other.info * 100),  "% (n = ", Counts, ")")),  
+  geom_text(aes(label = paste0(round(pCR * 100),  "% (n = ", Counts, ")")),  
             position = position_dodge(width = 0.9), 
             vjust = 1.8,  
             color = "black", 
@@ -554,7 +553,7 @@ print(bar_plot1)
 clin_HER2_pos_BP_Luminall <- clin_HER2_pos[clin_HER2_pos$BP.HER2.2..4 == "HER2+/BP_Luminal",]
 
 # Calculate the mean pCR rate for each treatment arm and receptor subtype
-pCR_rate2 <- aggregate(response.other.info ~ Arm..short.name., data = clin_HER2_pos_BP_Luminall, FUN = mean)
+pCR_rate2 <- aggregate(pCR ~ Arm..short.name., data = clin_HER2_pos_BP_Luminall, FUN = mean)
 
 # Filter pCR_rate2 for specific arms 
 pCR_rate2 <- pCR_rate2[pCR_rate2$Arm..short.name. %in% selected_arms,]
@@ -563,9 +562,9 @@ pCR_rate2 <- pCR_rate2[pCR_rate2$Arm..short.name. %in% selected_arms,]
 pCR_rate2$Counts2 <- table(clin_HER2_pos_BP_Luminall$Arm..short.name.)[pCR_rate$Arm..short.name.]
 
 # Define a ggplot object with a bar plot
-bar_plot2 <- ggplot(pCR_rate2, aes(x = Arm..short.name., y = response.other.info, fill = Arm..short.name.)) + 
+bar_plot2 <- ggplot(pCR_rate2, aes(x = Arm..short.name., y = pCR, fill = Arm..short.name.)) + 
   geom_bar(stat = "identity") + 
-  geom_text(aes(label = paste0(round(response.other.info * 100), "% (n = ", Counts2, ")")),  
+  geom_text(aes(label = paste0(round(pCR * 100), "% (n = ", Counts2, ")")),  
             position = position_dodge(width = 0.9), 
             vjust = 1.8,  
             color = "black", 
