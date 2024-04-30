@@ -16,17 +16,17 @@ clin_original <- read.csv(file_path_clin, stringsAsFactors = FALSE, sep = "\t")
 
 # Data Curation for Clinical Data
 # Selecting specific Columns for Analysis
-selected_cols <- c("patient", "Arm", "pCR")
+selected_cols <- c("patient", "Arm")
 
 # Combine selected columns with additional columns.
 clin <- cbind(clin_original[, selected_cols], "Breast", "F", "microarray", NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA)
 
 # Set new column names.
-colnames(clin) <- c("patient", "drug_type", "response.other.info", "primary", "sex", "rna", "rna_info", "age", "stage", "recist", "t.os", "t.pfs", "histo", "os", "pfs", "dna", "dna_info", "response")
+colnames(clin) <- c("patient", "drug_type", "primary", "sex", "rna", "rna_info", "age", "stage", "recist", "t.os", "t.pfs", "histo", "os", "pfs", "dna", "dna_info", "response")
 
 # Correct "response.other.info" format.
-clin$response.other.info <- ifelse(clin$response.other.info == 0, "NR", "R")
-  
+clin$response.other.info <- ifelse(clin_original$pCR == 0, "NR", "R")
+
 # Define "response" based on values in "response.other.info"
 clin$response <- Get_Response(data = clin) 
 
@@ -44,15 +44,9 @@ clin <- annotate_tissue(clin=clin, study='Wolf', annotation_tissue= annotation_t
 # Set  survival unit to NA Missing survival PFS/OS.
 clin$survival_unit <- NA
 
-# See unique drug_types.
-print(unique(clin$drug_type))
-
 # Set treatmentid based on curation_drug.csv file.
 annotation_drug <- read.csv("https://raw.githubusercontent.com/BHKLAB-DataProcessing/ICB_Common/main/data/curation_drug.csv")
 clin <- add_column(clin, treatmentid=annotate_drug('Wolf', clin$drug_type, annotation_drug), .after='tissueid')
-
-# Check changes. 
-print(unique(clin$treatmentid))
 
 # Update 'drug_type' column based  category for specific 'treatmentid'
 clin$drug_type[clin$treatmentid == 'Paclitaxel' ] <- 'chemo'
