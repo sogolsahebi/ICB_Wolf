@@ -1,5 +1,5 @@
 # Clinical Data Processing
-# Goal: save CLIN.csv (dimensions: 987 x 73).
+# Goal: save CLIN.csv (dimensions: 987 x 74).
 
 # Libraries and Source Files
 library(tibble)
@@ -11,18 +11,17 @@ source("https://raw.githubusercontent.com/BHKLAB-Pachyderm/ICB_Common/main/code/
 source("https://raw.githubusercontent.com/BHKLAB-Pachyderm/ICB_Common/main/code/annotate_drug.R")
 
 # Data Loading for Clinical Data
-file_path_clin <- "~/BHK lab/ICB_Wolf/files/CLIN.txt"
-clin_original <- read.csv(file_path_clin, stringsAsFactors = FALSE, sep = "\t")
+clin_original <- read.csv("files/CLIN.txt", stringsAsFactors = FALSE, sep = "\t")
 
 # Data Curation for Clinical Data
 # Selecting specific Columns for Analysis
 selected_cols <- c("patient", "Arm")
 
 # Combine selected columns with additional columns.
-clin <- cbind(clin_original[, selected_cols], "Breast", "F", "microarray", NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA)
+clin <- cbind(clin_original[, selected_cols], "F", "Breast", "microarray", NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA)
 
 # Set new column names.
-colnames(clin) <- c("patient", "drug_type", "primary", "sex", "rna", "rna_info", "age", "stage", "recist", "t.os", "t.pfs", "histo", "os", "pfs", "dna", "dna_info", "response")
+colnames(clin) <- c("patient", "drug_type", "sex", "primary", "rna", "rna_info", "age", "stage", "recist", "t.os", "t.pfs", "histo", "os", "pfs", "dna", "dna_info", "response")
 
 # Correct "response.other.info" format.
 clin$response.other.info <- ifelse(clin_original$pCR == 0, "NR", "R")
@@ -41,7 +40,7 @@ clin <- format_clin_data(clin_original, "patient", selected_cols, clin)
 annotation_tissue <- read.csv("https://raw.githubusercontent.com/BHKLAB-DataProcessing/ICB_Common/main/data/curation_tissue.csv")
 clin <- annotate_tissue(clin=clin, study='Wolf', annotation_tissue= annotation_tissue, check_histo=FALSE)
 
-# Set  survival unit to NA Missing survival PFS/OS.
+# Set survival unit to NA Missing survival PFS/OS.
 clin$survival_unit <- NA
 
 # Set treatmentid based on curation_drug.csv file.
@@ -53,7 +52,6 @@ clin$drug_type[clin$treatmentid == 'Paclitaxel' ] <- 'chemo'
 clin$drug_type[clin$treatmentid == 'Paclitaxel + Pembrolizumab'] <- 'IO+chemo'
 clin$drug_type[clin$treatmentid == 'Trastuzumab Emtansine + Pertuzumab'] <- 'targeted'
 
-
 clin$drug_type[clin$treatmentid %in% c('Paclitaxel + Neratinib', 
                                        'Paclitaxel + Veliparib dihydrochloride + Carboplatinum', 
                                        'Paclitaxel + Trastuzumab', 'Paclitaxel + Trebananib',
@@ -62,8 +60,11 @@ clin$drug_type[clin$treatmentid %in% c('Paclitaxel + Neratinib',
                                        'Paclitaxel + Trebananib + Trastuzumab', 'Paclitaxel + Ganitumab', 
                                        'Paclitaxel + Ganetespib')] <- 'chemo+targeted'
 
-
 # Save the processed data as CLIN.csv file
-file <- "~/BHK lab/ICB_Wolf/files/CLIN.csv"
-write.table( clin , file , quote=FALSE , sep=";" , col.names=TRUE , row.names=FALSE )
+write.table(clin, "files/CLIN.csv", quote=TRUE, sep=";", col.names=TRUE, row.names=FALSE)
+
+
+
+
+
 

@@ -303,7 +303,6 @@ Create_SummarizedExperiments = function( input_dir, study , expr_bool , snv_bool
   # coverage= data$coverage
   # indel_bool= data$indel_bool
   
-  
   # Path to processed data 
   case_file = paste( input_dir , "cased_sequenced.csv" , sep="/" )
   clin_file = paste( input_dir , "CLIN.csv" , sep="/" )
@@ -332,6 +331,8 @@ Create_SummarizedExperiments = function( input_dir, study , expr_bool , snv_bool
   clin$patient <- str_replace_all(clin$patient, '[-\\.]', '_')
   clin$tissueid[is.na(clin$tissueid)] <- ""
   clin$treatmentid[is.na(clin$treatmentid)] <- ""
+  #TODO for WOlf that is all F
+  clin$sex <- ifelse(clin$se  == FALSE, "F", clin2$sex)
   
   if( cna_bool ){
     cna = read.csv( cna_file , sep=";" , stringsAsFactors=FALSE )

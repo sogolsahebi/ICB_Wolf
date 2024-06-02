@@ -45,7 +45,7 @@ Load multiassay .rds file, extract clinical, expression and annotations data; pr
 # Load your multiassay result and extract clinical data , expression data and annotation
 
 #load mae obj
-mae <- readRDS("~/BHK lab/ICB_Wolf/output/ICB_Wolf.rds")
+mae <- readRDS("~/BHK lab/ICB/ICB_Wolf/output/ICB_Wolf.rds")
 
 #extract Clinical data 
 clin <- data.frame(colData(mae)) # Dim 987 x85

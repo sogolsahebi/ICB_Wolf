@@ -1,8 +1,8 @@
 # Format_downloaded_data.R
 
 # This script formats and cleans clinical and expression data.
-# - Creates "CLIN.txt" 
-# - Creates "EXPR.txt.gz"
+# - Creates "CLIN.txt" ,dimension 987 x 54
+# - Creates "EXPR.txt.gz", dimension 19134 x 987
 
 # Load necessary libraries
 library(readxl)
